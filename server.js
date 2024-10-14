@@ -2,7 +2,7 @@ const express = require('express');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const artistRoutes = require('./routes/artistRoutes.js');
-
+const cors = require('cors');
 
 // Load environment variables from a .env file
 dotenv.config();
@@ -12,6 +12,9 @@ const app = express();
 
 // Middleware to parse JSON requests
 app.use(express.json());
+
+// Use CORS middleware
+app.use(cors());
 
 // Use the artist routes
 app.use('/api', artistRoutes);
