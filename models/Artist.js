@@ -30,6 +30,10 @@ const artistSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  imageId: { 
+    type: String,
+    required: true
+  }
 });
 
 // Create the model from the schema and export it
