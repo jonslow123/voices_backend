@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+/*const mongoose = require('mongoose');
 
 // Define the schema for an artist
 const artistSchema = new mongoose.Schema({
@@ -39,3 +39,4 @@ const artistSchema = new mongoose.Schema({
 // Create the model from the schema and export it
 const Artist = mongoose.model('Artist', artistSchema, 'voices_residents');
 module.exports = Artist;
+*/

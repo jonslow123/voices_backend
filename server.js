@@ -1,39 +1,61 @@
+require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
-const dotenv = require('dotenv');
-const artistRoutes = require('./routes/artistRoutes.js');
 const cors = require('cors');
+const authRoutes = require('./routes/auth');
+const residentRoutes = require('./routes/artists');
+const featuredShowsRoutes = require('./routes/featuredShows');
+const cron = require('node-cron');
+const { archiveFeaturedShows } = require('./scripts/archiveFeaturedShows'); // Import the archiving function
+const userRoutes = require('./routes/users');
 
-// Load environment variables from a .env file
-dotenv.config();
-
-// Create the Express app
 const app = express();
 
-// Middleware to parse JSON requests
+// Middleware
+app.use(cors());
 app.use(express.json());
 
-// Use CORS middleware
-app.use(cors());
-
-// Use the artist routes
-app.use('/api', artistRoutes);
-
-// MongoDB connection string from .env file
-const mongoUri = process.env.MONGO_URI;
+// Set strictQuery to false to prepare for Mongoose 7
+mongoose.set('strictQuery', false);
 
 // Connect to MongoDB
-mongoose.connect(mongoUri, { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(() => console.log('Connected to MongoDB'))
-  .catch((err) => console.error('Failed to connect to MongoDB', err));
+const connectDB = async () => {
+  try {
+    await mongoose.connect(process.env.MONGODB_URI);
+    console.log('Connected to MongoDB');
+  } catch (error) {
+    console.error('MongoDB connection error:', error);
+    process.exit(1); // Exit the process if connection fails
+  }
+};
 
-// Simple route for testing
-app.get('/', (req, res) => {
-  res.send('API is running...');
+// Start the server after connecting to MongoDB
+const startServer = async () => {
+  await connectDB();
+  const PORT = process.env.PORT || 4000;
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+    console.log(`API accessible at: ${process.env.API_BASE_URL}`);
+  });
+};
+
+// Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/artists', residentRoutes);
+app.use('/api/featured-shows', featuredShowsRoutes);
+app.use('/api/users', userRoutes);
+
+// Schedule the archiving process to run at the end of each month
+cron.schedule('0 0 1 * *', () => {
+  console.log('Running archiving process...');
+  archiveFeaturedShows();
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ message: 'Something went wrong!' });
 });
 
 // Start the server
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+startServer();
