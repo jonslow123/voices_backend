@@ -21,43 +21,24 @@ app.use('/api/admin', adminRoutes);
 mongoose.set('strictQuery', false);
 
 // Connect to MongoDB
-const connectDB = async () => {
-  try {
-    await mongoose.connect(process.env.MONGODB_URI);
-    console.log('Connected to MongoDB');
-  } catch (error) {
-    console.error('MongoDB connection error:', error);
-    process.exit(1); // Exit the process if connection fails
-  }
-};
-
-// Start the server after connecting to MongoDB
-const startServer = async () => {
-  await connectDB();
+mongoose.connect(process.env.MONGODB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+})
+.then(() => {
+  console.log('Connected to MongoDB');
+  // Start the server only after successful connection
   const PORT = process.env.PORT || 4000;
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`API accessible at: ${process.env.API_BASE_URL}`);
   });
-};
+})
+.catch(err => {
+  console.error('MongoDB connection error:', err);
+});
 
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/artists', residentRoutes);
 app.use('/api/featured-shows', featuredShowsRoutes);
-app.use('/api/users', userRoutes);
-
-// Schedule the archiving process to run at the end of each month
-cron.schedule('0 0 1 * *', () => {
-  console.log('Running archiving process...');
-  archiveFeaturedShows();
-});
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ message: 'Something went wrong!' });
-});
-
-// Start the server
-startServer();

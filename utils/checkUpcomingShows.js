@@ -4,15 +4,6 @@ const User = require('../models/User');
 const { sendPushNotification } = require('../utils/pushNotifications');
 const { fuzzyMatch } = require('../utils/stringMatching');
 
-// Run at 55 minutes past every hour (5 minutes before the hour)
-cron.schedule('55 * * * *', async () => {
-  try {
-    console.log('Running upcoming shows check job');
-    await checkUpcomingShows();
-  } catch (error) {
-    console.error('Error in upcoming shows job:', error);
-  }
-});
 
 async function checkUpcomingShows() {
   // Get current and upcoming shows 
