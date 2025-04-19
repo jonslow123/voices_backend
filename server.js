@@ -12,6 +12,7 @@ const userRoutes = require('./routes/users');
 const adminRoutes = require('./routes/admin');
 const app = express();
 const cronRoutes = require('./routes/cron');
+const { authMiddleware } = require('./middleware/auth');
 
 app.use('/api/cron', cronRoutes);
 
@@ -56,3 +57,20 @@ mongoose.connect(process.env.MONGODB_URI, {
 app.use('/api/auth', authRoutes);
 app.use('/api/artists', residentRoutes);
 app.use('/api/featured-shows', featuredShowsRoutes);
+
+// Handle OPTIONS requests explicitly
+app.options('*', (req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-auth-token');
+  res.status(200).end();
+});
+
+// Add a test route that includes auth
+app.get('/api/auth-test', authMiddleware, (req, res) => {
+  res.json({
+    message: 'Authentication successful',
+    userId: req.userId,
+    timestamp: new Date().toISOString()
+  });
+});
