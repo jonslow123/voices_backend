@@ -16,7 +16,18 @@ const cronRoutes = require('./routes/cron');
 app.use('/api/cron', cronRoutes);
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: [
+    'https://voicesradio.co.uk',
+    'http://localhost:3000',
+    'https://voices-mobile-app.vercel.app',
+    // Add any other domains your app is served from
+    'exp://192.168.0.7:19000', // Add your Expo development URL
+    'exp://localhost:19000'
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 app.use('/api/admin', adminRoutes);
 
