@@ -11,6 +11,9 @@ const { archiveFeaturedShows } = require('./scripts/archiveFeaturedShows'); // I
 const userRoutes = require('./routes/users');
 const adminRoutes = require('./routes/admin');
 const app = express();
+const cronRoutes = require('./routes/cron');
+
+app.use('/api/cron', cronRoutes);
 
 // Middleware
 app.use(cors());
