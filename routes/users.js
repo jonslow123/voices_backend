@@ -51,17 +51,18 @@ router.patch('/me', auth, async (req, res) => {
 });
 
 // Subscribe to an artist
-router.post('/subscribe/:artistId', auth, async (req, res) => {
+// In your backend routes file
+router.post('/subscribe/:username', auth, async (req, res) => {
   try {
     const user = await User.findById(req.userId);
-    const artistId = req.params.artistId;
+    const artistUsername = req.params.username;
 
     // Check if already subscribed
-    if (user.artistsSubscribed.includes(artistId)) {
+    if (user.artistsSubscribed.includes(artistUsername)) {
       return res.status(400).json({ message: 'Already subscribed to this artist' });
     }
 
-    user.artistsSubscribed.push(artistId);
+    user.artistsSubscribed.push(artistUsername);
     await user.save();
     
     res.json({ message: 'Subscribed successfully', artistsSubscribed: user.artistsSubscribed });
@@ -71,15 +72,14 @@ router.post('/subscribe/:artistId', auth, async (req, res) => {
   }
 });
 
-// Unsubscribe from an artist
-router.post('/unsubscribe/:artistId', auth, async (req, res) => {
+router.post('/unsubscribe/:username', auth, async (req, res) => {
   try {
     const user = await User.findById(req.userId);
-    const artistId = req.params.artistId;
+    const artistUsername = req.params.username;
 
-    // Filter out the artist ID
+    // Filter out the artist username
     user.artistsSubscribed = user.artistsSubscribed.filter(
-      id => id.toString() !== artistId
+      username => username !== artistUsername
     );
     
     await user.save();
@@ -87,6 +87,30 @@ router.post('/unsubscribe/:artistId', auth, async (req, res) => {
     res.json({ message: 'Unsubscribed successfully', artistsSubscribed: user.artistsSubscribed });
   } catch (error) {
     console.error('Error unsubscribing from artist:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// server/routes/userRoutes.js
+
+// Add this endpoint to your user routes
+router.post('/device-token', auth, async (req, res) => {
+  try {
+    const { token } = req.body;
+    
+    if (!token) {
+      return res.status(400).json({ message: 'Token is required' });
+    }
+    
+    const user = await User.addDeviceToken(req.userId, token);
+    
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    res.json({ message: 'Device token registered successfully' });
+  } catch (error) {
+    console.error('Error registering device token:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });

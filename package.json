@@ -20,6 +20,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "expo-constants": "^17.0.8",
+    "expo-server-sdk": "^3.14.0",
     "expo-updates": "^0.27.4",
     "express": "^4.21.2",
     "fuse.js": "^7.0.0",
@@ -33,7 +34,8 @@
     "node-cron": "^3.0.3",
     "node-fetch": "^3.3.2",
     "nodemailer": "^6.10.0",
-    "react-native-webview": "^13.12.3"
+    "react-native-webview": "^13.12.3",
+    "string-similarity": "^4.0.4"
   },
   "devDependencies": {
     "nodemon": "^3.1.7"

@@ -24,83 +24,47 @@ const userSchema = new mongoose.Schema({
     trim: true
   },
   artistsSubscribed: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Resident' // Assuming your artists are stored in the Resident model
+    type: [String], 
+    ref: 'Resident'
   }],
   emailPreferences: {
-    newsletters: {
-      type: Boolean,
-      default: true
-    },
-    eventUpdates: {
-      type: Boolean,
-      default: true
-    },
-    artistAlerts: {
-      type: Boolean,
-      default: true
-    },
-    marketingEmails: {
-      type: Boolean,
-      default: false
-    }
+    newsletters: { type: Boolean, default: true },
+    eventUpdates: { type: Boolean, default: true },
+    artistAlerts: { type: Boolean, default: true },
+    marketingEmails: { type: Boolean, default: false }
   },
   notificationPreferences: {
-    newShows: {
-      type: Boolean,
-      default: true
-    },
-    artistUpdates: {
-      type: Boolean,
-      default: true
-    },
-    appUpdates: {
-      type: Boolean,
-      default: true
-    }
+    newShows: { type: Boolean, default: true },
+    artistUpdates: { type: Boolean, default: true },
+    appUpdates: { type: Boolean, default: true }
   },
   location: {
     city: String,
     country: String,
-    // You could also add coordinates if you want to use geolocation
     coordinates: {
-      type: {
-        type: String,
-        enum: ['Point'],
-        default: 'Point'
-      },
-      coordinates: {
-        type: [Number],
-        default: [0, 0] // [longitude, latitude]
-      }
+      type: { type: String, enum: ['Point'], default: 'Point' },
+      coordinates: { type: [Number], default: [0, 0] }
     }
   },
-  createdAt: {
-    type: Date,
-    default: Date.now
+  deviceTokens: {
+    type: [String],
+    default: []
   },
-  lastLogin: {
-    type: Date
-  },
-  isVerified: {
+  // Add to your user schema
+  isAdmin: {
     type: Boolean,
     default: false
   },
-  verificationToken: {
-    type: String
-  },
-  verificationTokenExpires: {
-    type: Date
-  }
-}, { 
-  collection: 'users' // Specify the collection name
+  isVerified: { type: Boolean, default: false },
+  verificationToken: String,
+  verificationTokenExpires: Date,
+  createdAt: { type: Date, default: Date.now },
+  lastLogin: Date,
+  resetPasswordToken: String,
+  resetPasswordExpires: Date,
+  }, { 
+  collection: 'users'
 });
-
-// Create an index for the email field for faster queries
-userSchema.index({ email: 1 });
-
-// Optional: Create a geospatial index if you use coordinates
-// userSchema.index({ 'location.coordinates': '2dsphere' });
 
 // Hash password before saving
 userSchema.pre('save', async function(next) {
@@ -130,6 +94,19 @@ userSchema.methods.getPublicProfile = function() {
   const userObject = this.toObject();
   delete userObject.password;
   return userObject;
+};
+
+userSchema.statics.addDeviceToken = async function(userId, token) {
+  const user = await this.findById(userId);
+  if (!user) return null;
+  
+  // Add token if not already present
+  if (!user.deviceTokens.includes(token)) {
+    user.deviceTokens.push(token);
+    await user.save();
+  }
+  
+  return user;
 };
 
 const User = mongoose.model('User', userSchema);
