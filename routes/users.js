@@ -3,13 +3,30 @@ const router = express.Router();
 const User = require('../models/User');
 const auth = require('../middleware/auth');
 
-// Get current user profile
+console.log('Setting up users routes');
+
+// Debug middleware for all users routes
+router.use((req, res, next) => {
+  console.log(`Users route accessed: ${req.method} ${req.path}`);
+  console.log('Headers:', JSON.stringify(req.headers));
+  next();
+});
+
+// Get current user profile - with extra logging
 router.get('/me', auth, async (req, res) => {
+  console.log('GET /me route handler called');
+  console.log('User ID from request:', req.userId);
+  
   try {
+    console.log('Looking up user in database');
     const user = await User.findById(req.userId);
+    
     if (!user) {
+      console.log('User not found for ID:', req.userId);
       return res.status(404).json({ message: 'User not found' });
     }
+    
+    console.log('User found, returning profile');
     res.json(user.getPublicProfile());
   } catch (error) {
     console.error('Error fetching user profile:', error);
@@ -91,8 +108,6 @@ router.post('/unsubscribe/:username', auth, async (req, res) => {
   }
 });
 
-// server/routes/userRoutes.js
-
 // Add this endpoint to your user routes
 router.post('/device-token', auth, async (req, res) => {
   try {
@@ -115,4 +130,6 @@ router.post('/device-token', auth, async (req, res) => {
   }
 });
 
+// Log that routes are set up
+console.log('Users routes set up successfully');
 module.exports = router; 

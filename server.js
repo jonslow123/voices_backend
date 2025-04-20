@@ -12,23 +12,23 @@ const userRoutes = require('./routes/users');
 const adminRoutes = require('./routes/admin');
 const app = express();
 const cronRoutes = require('./routes/cron');
+const fs = require('fs');
+const path = require('path');
+const auth = require('./middleware/auth');
+const User = require('./models/User');
 
 app.use('/api/cron', cronRoutes);
 
-// Middleware
-app.use(cors({
-  origin: [
-    'https://voicesradio.co.uk',
-    'http://localhost:3000',
-    'https://voices-mobile-app.vercel.app',
-    // Add any other domains your app is served from
-    'exp://192.168.0.7:19000', // Add your Expo development URL
-    'exp://localhost:19000'
-  ],
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+// Basic middleware first
 app.use(express.json());
+app.use(cors());
+
+// Request logging
+app.use((req, res, next) => {
+  console.log(`Request: ${req.method} ${req.url}`);
+  next();
+});
+
 app.use('/api/admin', adminRoutes);
 
 // Set strictQuery to false to prepare for Mongoose 7
@@ -56,3 +56,39 @@ mongoose.connect(process.env.MONGODB_URI, {
 app.use('/api/auth', authRoutes);
 app.use('/api/artists', residentRoutes);
 app.use('/api/featured-shows', featuredShowsRoutes);
+
+// Then routes
+app.use('/api/users', require('./routes/users'));
+
+// Then check if your users routes are properly registered
+console.log('Registering user routes...');
+
+const usersRoutePath = path.join(__dirname, 'routes', 'users.js');
+console.log('Checking for users.js at:', usersRoutePath);
+console.log('File exists:', fs.existsSync(usersRoutePath));
+
+// Then when importing
+try {
+  const userRoutes = require('./routes/users');
+  console.log('Successfully imported users routes');
+  app.use('/api/users', userRoutes);
+} catch (error) {
+  console.error('Error importing users routes:', error);
+}
+
+console.log('User routes registered');
+
+
+// Add a direct route that doesn't use the router
+app.get('/api/users/me-direct', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found (direct route)' });
+    }
+    res.json(user.getPublicProfile());
+  } catch (error) {
+    console.error('Error fetching user profile (direct route):', error);
+    res.status(500).json({ message: 'Server error (direct route)' });
+  }
+});
