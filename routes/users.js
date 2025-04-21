@@ -94,14 +94,33 @@ router.post('/unsubscribe/:username', auth, async (req, res) => {
     const user = await User.findById(req.userId);
     const artistUsername = req.params.username;
 
-    // Filter out the artist username
-    user.artistsSubscribed = user.artistsSubscribed.filter(
-      username => username !== artistUsername
-    );
+    console.log('Before unsubscribe:', JSON.stringify(user.artistsSubscribed));
+    console.log('Unsubscribing from:', artistUsername);
+
+    // Check the structure of artistsSubscribed
+    if (Array.isArray(user.artistsSubscribed) && user.artistsSubscribed.length > 0) {
+      // If it's an array of arrays
+      if (Array.isArray(user.artistsSubscribed[0])) {
+        user.artistsSubscribed = user.artistsSubscribed.filter(
+          arr => !(Array.isArray(arr) && arr[0] === artistUsername)
+        );
+      } 
+      // If it's a flat array of strings
+      else {
+        user.artistsSubscribed = user.artistsSubscribed.filter(
+          username => username !== artistUsername
+        );
+      }
+    }
+    
+    console.log('After unsubscribe:', JSON.stringify(user.artistsSubscribed));
     
     await user.save();
     
-    res.json({ message: 'Unsubscribed successfully', artistsSubscribed: user.artistsSubscribed });
+    res.json({ 
+      message: 'Unsubscribed successfully', 
+      artistsSubscribed: user.artistsSubscribed 
+    });
   } catch (error) {
     console.error('Error unsubscribing from artist:', error);
     res.status(500).json({ message: 'Server error' });
