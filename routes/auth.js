@@ -313,4 +313,46 @@ router.post('/reset-password', async (req, res) => {
     }
 });
 
+// Reset password with token
+router.post('/reset-password/:token', async (req, res) => {
+  try {
+    console.log('Password reset request received');
+    console.log('Token:', req.params.token);
+    console.log('New password length:', req.body.password?.length || 0);
+    
+    const { token } = req.params;
+    const { password } = req.body;
+
+    if (!password || password.length < 8) {
+      return res.status(400).json({ message: 'Password must be at least 8 characters long' });
+    }
+
+    // Find user with valid reset token
+    const user = await User.findOne({
+      resetPasswordToken: token,
+      resetPasswordExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      console.log('No user found with this reset token or token expired');
+      return res.status(400).json({ message: 'Invalid or expired reset token' });
+    }
+
+    console.log('User found, resetting password');
+    
+    // Set new password (will be hashed by pre-save hook)
+    user.password = password;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    console.log('Password reset successful');
+    res.json({ message: 'Password has been reset successfully' });
+
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 module.exports = router; 
