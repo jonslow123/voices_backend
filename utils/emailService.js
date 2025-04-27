@@ -31,7 +31,7 @@ const sendVerificationEmail = async (user, token) => {
 };
 
 const sendPasswordResetEmail = async (user, token) => {
-  const resetUrl = `${process.env.VERIFICATION_PAGE_URL}/reset-password?token=${token}`;
+  const resetUrl = `${process.env.API_BASE_URL}/api/auth/reset-password?token=${token}`;
 
   const mailOptions = {
     from: process.env.EMAIL_FROM,
