@@ -46,7 +46,7 @@ const sendPasswordResetEmail = async (user, token) => {
     html: `
       <p>Hello ${user.firstName},</p>
       <p>You are receiving this email because you (or someone else) has requested to reset your password.</p>
-      <p>Please <a href="${resetUrl}">Change Password Here</a></p>
+      <p><a href="${resetUrl}">Change Password Here</a></p>
       <p>If you did not request this, please ignore this email and your password will remain unchanged.</p>
       <p>This link will expire in 24 hours.</p>
       <p>Thanks,<br/>The Voices App Team</p>
