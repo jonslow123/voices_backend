@@ -30,8 +30,7 @@ const userSchema = new mongoose.Schema({
   emailPreferences: {
     newsletters: { type: Boolean, default: true },
     eventUpdates: { type: Boolean, default: true },
-    artistAlerts: { type: Boolean, default: true },
-    marketingEmails: { type: Boolean, default: false }
+    artistAlerts: { type: Boolean, default: true }
   },
   notificationPreferences: {
     newShows: { type: Boolean, default: true },
