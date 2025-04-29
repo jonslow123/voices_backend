@@ -65,6 +65,19 @@ router.patch('/me', auth, async (req, res) => {
         return res.status(400).json({ message: 'Email already in use' });
       }
       
+      // Check if password was provided
+      if (!req.body.currentPassword) {
+        return res.status(400).json({ 
+          message: 'Current password is required to change email address'
+        });
+      }
+      
+      // Verify password
+      const isPasswordValid = await user.comparePassword(req.body.currentPassword);
+      if (!isPasswordValid) {
+        return res.status(401).json({ message: 'Current password is incorrect' });
+      }
+      
       // Generate new verification token
       const verificationToken = crypto.randomBytes(32).toString('hex');
       const verificationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours

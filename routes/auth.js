@@ -355,4 +355,81 @@ router.post('/reset-password/:token', async (req, res) => {
   }
 });
 
+// Change email address (no authentication required)
+router.post('/change-email', async (req, res) => {
+  try {
+    const { currentEmail, newEmail, password } = req.body;
+    
+    // Validate required fields
+    if (!currentEmail || !newEmail || !password) {
+      return res.status(400).json({ 
+        message: 'Current email, new email, and password are required' 
+      });
+    }
+    
+    // Check if emails are different
+    if (currentEmail === newEmail) {
+      return res.status(400).json({ message: 'New email must be different from current email' });
+    }
+    
+    // Find user by current email
+    const user = await User.findOne({ email: currentEmail });
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+    
+    // Verify password
+    const isPasswordValid = await user.comparePassword(password);
+    if (!isPasswordValid) {
+      return res.status(401).json({ message: 'Invalid email or password' });
+    }
+    
+    // Check if new email is already in use by another account
+    const existingUser = await User.findOne({ email: newEmail });
+    if (existingUser && existingUser._id.toString() !== user._id.toString()) {
+      return res.status(400).json({ message: 'Email already in use by another account' });
+    }
+    
+    // Generate new verification token
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    
+    // Update user
+    user.email = newEmail;
+    user.isVerified = false;
+    user.verificationToken = verificationToken;
+    user.verificationTokenExpires = verificationTokenExpires;
+    
+    await user.save();
+    
+    // Send verification email to new address
+    try {
+      await sendVerificationEmail(user, verificationToken);
+    } catch (emailError) {
+      console.error('Error sending verification email:', emailError);
+      // Revert the change if verification email fails
+      user.email = currentEmail;
+      user.isVerified = true; // Assuming the previous email was verified
+      user.verificationToken = undefined;
+      user.verificationTokenExpires = undefined;
+      await user.save();
+      
+      return res.status(500).json({ 
+        message: 'Failed to send verification email. Email not changed.',
+        emailError: true 
+      });
+    }
+    
+    res.json({
+      message: 'Email address updated. Please verify your new email address.',
+      email: newEmail,
+      needsVerification: true
+    });
+    
+  } catch (error) {
+    console.error('Change email error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 module.exports = router; 
