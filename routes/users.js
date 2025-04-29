@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 const auth = require('../middleware/auth');
+const crypto = require('crypto');
 
 console.log('Setting up users routes');
 
@@ -38,7 +39,7 @@ router.get('/me', auth, async (req, res) => {
 router.patch('/me', auth, async (req, res) => {
   const updates = Object.keys(req.body);
   const allowedUpdates = [
-    'firstName', 'lastName', 'location', 
+    'firstName', 'lastName', 'email', 'location', 
     'emailPreferences', 'notificationPreferences'
   ];
   
@@ -54,13 +55,59 @@ router.patch('/me', auth, async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Apply updates
+    // Check if email is being updated
+    const isEmailUpdate = updates.includes('email') && req.body.email !== user.email;
+    
+    if (isEmailUpdate) {
+      // Check if the new email is already in use
+      const existingUser = await User.findOne({ email: req.body.email });
+      if (existingUser) {
+        return res.status(400).json({ message: 'Email already in use' });
+      }
+      
+      // Generate new verification token
+      const verificationToken = crypto.randomBytes(32).toString('hex');
+      const verificationTokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+      
+      // Set the email to unverified
+      user.isVerified = false;
+      user.verificationToken = verificationToken;
+      user.verificationTokenExpires = verificationTokenExpires;
+      
+      // Send verification email
+      try {
+        const { sendVerificationEmail } = require('../utils/emailService');
+        await sendVerificationEmail(user, verificationToken);
+      } catch (emailError) {
+        console.error('Error sending verification email:', emailError);
+        return res.status(500).json({ 
+          message: 'Error sending verification email. Please try again later.',
+          emailError: true
+        });
+      }
+    }
+
+    // Apply all updates
     updates.forEach(update => {
       user[update] = req.body[update];
     });
 
     await user.save();
-    res.json(user.getPublicProfile());
+    
+    // Prepare response based on whether email was updated
+    const response = {
+      user: user.getPublicProfile()
+    };
+    
+    if (isEmailUpdate) {
+      response.message = 'Profile updated. Please verify your new email address.';
+      response.emailChanged = true;
+    } else {
+      response.message = 'Profile updated successfully.';
+    }
+    
+    res.json(response);
+    
   } catch (error) {
     console.error('Error updating user profile:', error);
     res.status(500).json({ message: 'Server error' });

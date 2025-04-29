@@ -36,7 +36,7 @@ const sendPasswordResetEmail = async (user, token) => {
   const mailOptions = {
     from: process.env.EMAIL_FROM,
     to: user.email,
-    subject: 'Reset Your Password - Voices App',
+    subject: 'Reset Your Password - Voices Radio',
     text: `Hello ${user.firstName},\n\n
     You are receiving this email because you (or someone else) has requested to reset your password.\n\n
     Please click on the following link to reset your password: ${resetUrl}\n\n
@@ -47,9 +47,9 @@ const sendPasswordResetEmail = async (user, token) => {
       <p>Hello ${user.firstName},</p>
       <p>You are receiving this email because you (or someone else) has requested to reset your password.</p>
       <p><a href="${resetUrl}">Change Password Here</a></p>
-      <p>If you did not request this, please ignore this email and your password will remain unchanged.</p>
+      <p>If you did not request this, please ignore this email, get in touch with us about this and your password will remain unchanged. </p>
       <p>This link will expire in 24 hours.</p>
-      <p>Thanks,<br/>The Voices App Team</p>
+      <p>Thanks,<br/> Voices Radio </p>
     `,
   };
 
