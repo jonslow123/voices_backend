@@ -40,13 +40,29 @@ router.patch('/me', auth, async (req, res) => {
   const updates = Object.keys(req.body);
   const allowedUpdates = [
     'firstName', 'lastName', 'email', 'location', 
-    'emailPreferences', 'notificationPreferences'
+    'newsletters', 'notificationPreferences'
   ];
   
   // Validate updates
   const isValidOperation = updates.every(update => allowedUpdates.includes(update));
   if (!isValidOperation) {
     return res.status(400).json({ message: 'Invalid updates' });
+  }
+
+  // Validate notification preferences if they're being updated
+  if (req.body.notificationPreferences) {
+    const allowedNotificationPrefs = ['artistAlerts', 'eventAlerts'];
+    const notificationUpdates = Object.keys(req.body.notificationPreferences);
+    
+    const isValidNotificationUpdate = notificationUpdates.every(update => 
+      allowedNotificationPrefs.includes(update)
+    );
+    
+    if (!isValidNotificationUpdate) {
+      return res.status(400).json({ 
+        message: 'Invalid notification preference updates' 
+      });
+    }
   }
 
   try {
@@ -102,7 +118,14 @@ router.patch('/me', auth, async (req, res) => {
 
     // Apply all updates
     updates.forEach(update => {
-      user[update] = req.body[update];
+      if (update === 'notificationPreferences') {
+        // Update only the provided notification preferences
+        Object.keys(req.body.notificationPreferences).forEach(pref => {
+          user.notificationPreferences[pref] = req.body.notificationPreferences[pref];
+        });
+      } else {
+        user[update] = req.body[update];
+      }
     });
 
     await user.save();

@@ -27,15 +27,12 @@ const userSchema = new mongoose.Schema({
     type: [String], 
     ref: 'Resident'
   }],
-  emailPreferences: {
-    newsletters: { type: Boolean, default: true },
-    eventUpdates: { type: Boolean, default: true },
-    artistAlerts: { type: Boolean, default: true }
-  },
+  // Email notifications
+  newsletters: { type: Boolean, default: true },
+  // App notifications
   notificationPreferences: {
-    newShows: { type: Boolean, default: true },
-    artistUpdates: { type: Boolean, default: true },
-    appUpdates: { type: Boolean, default: true }
+    artistAlerts: { type: Boolean, default: true },
+    eventAlerts: { type: Boolean, default: true }
   },
   location: {
     city: String,
