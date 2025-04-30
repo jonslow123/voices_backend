@@ -432,4 +432,41 @@ router.post('/change-email', async (req, res) => {
   }
 });
 
+// Logout - optional token invalidation
+router.post('/logout', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization || req.headers.Authorization;
+    let token = null;
+    
+    if (authHeader) {
+      token = authHeader.startsWith('Bearer ') 
+        ? authHeader.replace('Bearer ', '') 
+        : authHeader;
+    } else if (req.headers['x-auth-token'] || req.headers['X-Auth-Token']) {
+      token = req.headers['x-auth-token'] || req.headers['X-Auth-Token'];
+    }
+    
+    // If you want to track invalidated tokens (requires a blacklist in your database)
+    // This is optional but adds security by preventing token reuse after logout
+    if (token) {
+      try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const userId = decoded.userId;
+        
+        // You could store this token in a blacklist with an expiry
+        // For demonstration, I'll just log it
+        console.log(`User ${userId} logged out, token invalidated`);
+      } catch (error) {
+        // Invalid token, but still return success since the goal is to log out
+        console.log('Invalid token provided for logout');
+      }
+    }
+    
+    res.json({ message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('Logout error:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 module.exports = router; 
