@@ -5,9 +5,17 @@ const User = require('../models/User');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
 const { sendVerificationEmail, sendPasswordResetEmail } = require('../utils/emailService');
+const { OAuth2Client } = require('google-auth-library');
 
 
 mongoose.set('strictQuery', false);
+
+// Initialize the Google OAuth2 client
+const oauth2Client = new OAuth2Client(
+  process.env.GOOGLE_CLIENT_ID,
+  process.env.GOOGLE_CLIENT_SECRET,
+  process.env.GOOGLE_REDIRECT_URI
+);
 
 router.post('/login', async (req, res) => {
   try {
@@ -466,6 +474,100 @@ router.post('/logout', async (req, res) => {
   } catch (error) {
     console.error('Logout error:', error);
     res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Google Auth endpoint
+router.post('/google-auth', async (req, res) => {
+  try {
+    const { code } = req.body;
+    
+    if (!code) {
+      return res.status(400).json({ message: 'Authorization code is required' });
+    }
+
+    // Exchange the code for tokens
+    const { tokens } = await oauth2Client.getToken(code);
+    oauth2Client.setCredentials(tokens);
+
+    // Get user profile information from Google
+    const ticket = await oauth2Client.verifyIdToken({
+      idToken: tokens.id_token,
+      audience: process.env.GOOGLE_CLIENT_ID
+    });
+
+    const payload = ticket.getPayload();
+    const { email, given_name: firstName, family_name: lastName, email_verified } = payload;
+
+    // Check if the user already exists
+    let user = await User.findOne({ email });
+
+    if (user) {
+      // User exists, check if they were created with Google Auth or regular signup
+      if (user.password === '$GOOGLE_AUTH$') {
+        // User was created with Google Auth before, just log them in
+        
+        // Update last login time
+        user.lastLogin = new Date();
+        await user.save();
+        
+        // Create JWT token
+        const token = jwt.sign(
+          { userId: user._id },
+          process.env.JWT_SECRET,
+          { expiresIn: '24h' }
+        );
+        
+        return res.json({
+          token,
+          user: user.getPublicProfile(),
+          isNewUser: false
+        });
+      } else {
+        // User signed up with email/password, don't allow Google Auth login
+        return res.status(400).json({ 
+          message: 'An account already exists with this email. Please log in with your password.',
+          needsPassword: true
+        });
+      }
+    } else {
+      // Create a new user with Google information
+      // Generate a random password placeholder (user won't need it, but the schema requires it)
+      const googleAuthPassword = '$GOOGLE_AUTH$';
+      
+      user = new User({
+        email,
+        firstName: firstName || '',
+        lastName: lastName || '',
+        password: googleAuthPassword,
+        isVerified: email_verified, // automatically verify if Google verified the email
+        location: {},
+        notificationPreferences: {
+          artistAlerts: true,
+          eventAlerts: true
+        },
+        newsletters: true
+      });
+      
+      await user.save();
+      
+      // Create JWT token
+      const token = jwt.sign(
+        { userId: user._id },
+        process.env.JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+      
+      return res.status(201).json({
+        token,
+        user: user.getPublicProfile(),
+        isNewUser: true,
+        message: 'Account created successfully with Google'
+      });
+    }
+  } catch (error) {
+    console.error('Google auth error:', error);
+    res.status(500).json({ message: 'Server error during Google authentication' });
   }
 });
 
