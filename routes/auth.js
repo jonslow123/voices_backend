@@ -571,4 +571,30 @@ router.post('/google-auth', async (req, res) => {
   }
 });
 
+router.get('/health', async (req, res) => {
+  try {
+    const dbStatus = mongoose.connection.readyState;
+    const statusMap = {
+      0: 'disconnected',
+      1: 'connected',
+      2: 'connecting',
+      3: 'disconnecting'
+    };
+    
+    const envCheck = {
+      JWT_SECRET: !!process.env.JWT_SECRET,
+      MONGODB_URI: !!process.env.MONGODB_URI
+    };
+    
+    res.json({
+      status: 'ok',
+      database: statusMap[dbStatus] || 'unknown',
+      environment: envCheck
+    });
+  } catch (error) {
+    console.error('Health check error:', error);
+    res.status(500).json({ status: 'error', message: error.message });
+  }
+});
+
 module.exports = router; 
