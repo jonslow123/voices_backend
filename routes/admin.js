@@ -5,7 +5,7 @@ const auth = require('../middleware/auth');
 const isAdmin = require('../middleware/isAdmin'); 
 const { sendPushNotification } = require('../utils/pushNotifications');
 const Artist = require('../models/Artist');
-const admin = require('../middleware/admin'); // You'll need to create this middleware
+const admin = require('../middleware/isAdmin'); // You'll need to create this middleware
 
 // Middleware to check if user is admin
 const adminCheck = [auth, admin];
