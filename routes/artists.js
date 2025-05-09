@@ -1,35 +1,35 @@
 const express = require('express');
 const router = express.Router();
-const Resident = require('../models/Resident');
+const Artist = require('../models/Artist');
 
-// GET all residents
+// GET all artists
 router.get('/', async (req, res) => {
   try {
-    const residents = await Resident.find();
-    console.log(`Found ${residents.length} residents`); // Debug log
+    const artists = await Artist.find();
+    console.log(`Found ${artists.length} artists`); // Debug log
     
-    if (!residents.length) {
-      return res.status(404).json({ message: 'No residents found' });
+    if (!artists.length) {
+      return res.status(404).json({ message: 'No artists found' });
     }
     
-    res.json(residents);
+    res.json(artists);
   } catch (error) {
-    console.error('Error fetching residents:', error);
-    res.status(500).json({ message: 'Error fetching residents' });
+    console.error('Error fetching artists:', error);
+    res.status(500).json({ message: 'Error fetching artists' });
   }
 });
 
-// Optional: Get resident by ID
+// Get artist by ID
 router.get('/:id', async (req, res) => {
   try {
-    const resident = await Resident.findById(req.params.id);
-    if (!resident) {
-      return res.status(404).json({ message: 'Resident not found' });
+    const artist = await Artist.findById(req.params.id);
+    if (!artist) {
+      return res.status(404).json({ message: 'Artist not found' });
     }
-    res.json(resident);
+    res.json(artist);
   } catch (error) {
-    console.error('Error fetching resident:', error);
-    res.status(500).json({ message: 'Error fetching resident' });
+    console.error('Error fetching artist:', error);
+    res.status(500).json({ message: 'Error fetching artist' });
   }
 });
 
