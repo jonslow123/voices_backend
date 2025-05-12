@@ -46,7 +46,6 @@ const userSchema = new mongoose.Schema({
     type: [String],
     default: []
   },
-  // Add to your user schema
   isAdmin: {
     type: Boolean,
     default: false

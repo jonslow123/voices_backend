@@ -1,0 +1,21 @@
+[core]
+	repositoryformatversion = 0
+	filemode = true
+	bare = false
+	logallrefupdates = true
+	ignorecase = true
+	precomposeunicode = true
+[remote "origin"]
+	url = https://github.com/jonslow123/voices_backend.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+[branch "master"]
+	remote = origin
+	merge = refs/heads/master
+[branch "main"]
+	vscode-merge-base = origin/master
+	remote = origin
+	merge = refs/heads/main
+[user]
+	name = jonslow123
+	password = Mikebibby11!
+	email = onslow.jack@yahoo.com

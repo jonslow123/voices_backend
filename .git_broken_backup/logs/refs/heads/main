@@ -1,0 +1,29 @@
+0000000000000000000000000000000000000000 f3f32c4a142218c2acb93cc7f6d62fea58936fbb jonslow123 <onslow.jack@yahoo.com> 1728859240 +0100	branch: Created from master
+f3f32c4a142218c2acb93cc7f6d62fea58936fbb c1a3f5ff1cba0345856d796e1f7f7f6a94f2a20f jonslow123 <onslow.jack@yahoo.com> 1728941180 +0100	commit: Changes to server.js for retrieval from Expo, CORS added
+c1a3f5ff1cba0345856d796e1f7f7f6a94f2a20f cc3a503197039f94fe50458a571027485b568f41 jonslow123 <onslow.jack@yahoo.com> 1729204490 +0100	commit: Mongoos & MongoDB dependency updates and GridFS file usage
+cc3a503197039f94fe50458a571027485b568f41 248ffddc5860e75a1624c261c8996f092d211a05 jackdainin10 <jack@dainin.co.uk> 1744580822 +0100	commit: Email verification, email & password, new branding, big fixes, player context changes, and more
+248ffddc5860e75a1624c261c8996f092d211a05 b2192da45599cac5626cf02f4a79ab213f49b9a5 jackdainin10 <jack@dainin.co.uk> 1745079750 +0100	commit: Notification system additions
+b2192da45599cac5626cf02f4a79ab213f49b9a5 75ecca1a87d97048fb52fc6601bc0ead2f266155 jackdainin10 <jack@dainin.co.uk> 1745084157 +0100	commit: Api w/ Cron Job
+75ecca1a87d97048fb52fc6601bc0ead2f266155 c7bfbb2871f3a0964e3fbc349c07f118f16e7ae1 jonslow123 <jack@dainin.co.uk> 1745091266 +0100	commit: Move Cron endpoint
+c7bfbb2871f3a0964e3fbc349c07f118f16e7ae1 f8efb011e98c4419c999eaf9aac93950e5c2e6e1 jonslow123 <onslow.jack@yahoo.com> 1745095413 +0100	commit: CORS additions
+f8efb011e98c4419c999eaf9aac93950e5c2e6e1 267042fde428c6a95b14ee106620e338171a3a86 jonslow123 <onslow.jack@yahoo.com> 1745098965 +0100	commit: Additions for routes
+267042fde428c6a95b14ee106620e338171a3a86 3be9f3a208c6c543d1685f11a17986035d48acf6 jonslow123 <onslow.jack@yahoo.com> 1745099853 +0100	commit: New vercel config
+3be9f3a208c6c543d1685f11a17986035d48acf6 30926a20f1d8fa8908abdd9d993996b6f7627156 jonslow123 <onslow.jack@yahoo.com> 1745100036 +0100	commit: New config
+30926a20f1d8fa8908abdd9d993996b6f7627156 3afd2b52f0c33d71e9b847c2b44fddff98b1d6ae jonslow123 <onslow.jack@yahoo.com> 1745157692 +0100	commit: Me endpoint debug
+3afd2b52f0c33d71e9b847c2b44fddff98b1d6ae 6462230d995e425828f4a67383657f632f88936a jonslow123 <onslow.jack@yahoo.com> 1745267839 +0100	commit: Unsubscribe issue
+6462230d995e425828f4a67383657f632f88936a e30a384e2f560f5971f495112a321ebd990cd44b jonslow123 <onslow.jack@yahoo.com> 1745772115 +0100	commit: Change Password text changes
+e30a384e2f560f5971f495112a321ebd990cd44b efe0dccf60f85bd77c28f518ed6d4a2d51ece7d6 jonslow123 <onslow.jack@yahoo.com> 1745772475 +0100	commit: New passsword reset page
+efe0dccf60f85bd77c28f518ed6d4a2d51ece7d6 f0a30b5708da3ecbb6ba321a5a4838aa0c71ce24 jonslow123 <onslow.jack@yahoo.com> 1745774036 +0100	commit: Change URL for pw reset
+f0a30b5708da3ecbb6ba321a5a4838aa0c71ce24 0a7b3d18e0212319e5d5936ee94ac3535edc27aa jonslow123 <onslow.jack@yahoo.com> 1745778696 +0100	commit: New Logo
+0a7b3d18e0212319e5d5936ee94ac3535edc27aa 837b66f00a1dd3b93cc0c85496a6b5e63067e8f6 jonslow123 <onslow.jack@yahoo.com> 1745779083 +0100	commit: New token reset endpoing
+837b66f00a1dd3b93cc0c85496a6b5e63067e8f6 6cf09adcfad4739cafa269feb923a68e3215195a jonslow123 <onslow.jack@yahoo.com> 1745779544 +0100	commit: Padding additions
+6cf09adcfad4739cafa269feb923a68e3215195a 6a8d95ca90e92ef10847dd073dcba38e2b73a782 jonslow123 <onslow.jack@yahoo.com> 1745919517 +0100	commit: Change name & email
+6a8d95ca90e92ef10847dd073dcba38e2b73a782 ce239f9c5ea7617cb93e1a8ee162dd64862acc55 jonslow123 <onslow.jack@yahoo.com> 1745920915 +0100	commit: Unauthenticated email flow
+ce239f9c5ea7617cb93e1a8ee162dd64862acc55 7950d3cdb343c57761f38db062186c0a2c52b5ac jonslow123 <onslow.jack@yahoo.com> 1745928931 +0100	commit: Remove Marketing Preferences
+7950d3cdb343c57761f38db062186c0a2c52b5ac 39d12050b666b55c6e7408e9a0212da0d13b51ed jonslow123 <onslow.jack@yahoo.com> 1746024249 +0100	commit: Logout route
+39d12050b666b55c6e7408e9a0212da0d13b51ed 8927ac4ae8af04cd90b963ebf2962925469f1cdd jonslow123 <onslow.jack@yahoo.com> 1746044447 +0100	commit: Changes to User model & User route for notification & email prefs
+8927ac4ae8af04cd90b963ebf2962925469f1cdd 716c08dc7a7536f0555a07fd68902f1ced748dc9 jonslow123 <onslow.jack@yahoo.com> 1746217029 +0100	commit: Google Auth
+716c08dc7a7536f0555a07fd68902f1ced748dc9 9ae901e8ccc61839d4472bc716135789ddd10055 jonslow123 <onslow.jack@yahoo.com> 1746742351 +0100	commit: New Artists DB
+9ae901e8ccc61839d4472bc716135789ddd10055 4a9882a516dbfa9066b1e8bd6fec894d424bb3eb jonslow123 <onslow.jack@yahoo.com> 1746744235 +0100	commit: Populate Artists script
+4a9882a516dbfa9066b1e8bd6fec894d424bb3eb 46de0f2684b6c49061484eddf3b45be1f06b7930 jonslow123 <onslow.jack@yahoo.com> 1746744604 +0100	commit: HealthCheck additions
+46de0f2684b6c49061484eddf3b45be1f06b7930 82f5f2045b0b0be5f8151b6dc61d05f27019c983 jonslow123 <onslow.jack@yahoo.com> 1746745108 +0100	commit: Admin changes

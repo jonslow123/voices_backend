@@ -25,7 +25,14 @@ app.use(cors());
 
 // Request logging
 app.use((req, res, next) => {
-  console.log(`Request: ${req.method} ${req.url}`);
+  console.log('=== Request Details ===');
+  console.log(`Method: ${req.method}`);
+  console.log(`URL: ${req.url}`);
+  console.log(`Path: ${req.path}`);
+  console.log(`Original URL: ${req.originalUrl}`);
+  console.log('Headers:', JSON.stringify(req.headers, null, 2));
+  console.log('Body:', JSON.stringify(req.body, null, 2));
+  console.log('=====================');
   next();
 });
 
@@ -91,4 +98,17 @@ app.get('/api/users/me-direct', auth, async (req, res) => {
     console.error('Error fetching user profile (direct route):', error);
     res.status(500).json({ message: 'Server error (direct route)' });
   }
+});
+
+// Catch-all route for debugging
+app.use('*', (req, res) => {
+  console.log('=== Unmatched Route ===');
+  console.log(`Method: ${req.method}`);
+  console.log(`URL: ${req.url}`);
+  console.log(`Path: ${req.path}`);
+  console.log(`Original URL: ${req.originalUrl}`);
+  console.log('Headers:', JSON.stringify(req.headers, null, 2));
+  console.log('Body:', JSON.stringify(req.body, null, 2));
+  console.log('=====================');
+  res.status(404).json({ message: 'Route not found', path: req.path });
 });
