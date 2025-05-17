@@ -31,7 +31,6 @@ const artistSchema = new mongoose.Schema({
   soundcloudUsername: String,
   // Metadata
   isActive: { type: Boolean, default: true },
-  isResident: { type: Boolean, default: false },
   featured: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now },

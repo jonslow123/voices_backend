@@ -597,4 +597,45 @@ router.get('/health', async (req, res) => {
   }
 });
 
+// Check if Apple user exists endpoint
+router.post('/check-apple-user', async (req, res) => {
+  try {
+    const { appleUserId } = req.body;
+    
+    if (!appleUserId) {
+      return res.status(400).json({ message: 'Apple User ID is required' });
+    }
+    
+    // Check if user exists
+    const user = await User.findOne({ appleUserId });
+    
+    if (!user) {
+      return res.json({ exists: false });
+    }
+    
+    // Generate JWT token
+    const token = jwt.sign(
+      { userId: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+    
+    // Return user info with token
+    res.json({
+      exists: true,
+      token,
+      user: {
+        id: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        isAdmin: user.isAdmin
+      }
+    });
+  } catch (error) {
+    console.error('Error checking Apple user:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 module.exports = router; 
