@@ -651,34 +651,102 @@ const appleClient = new appleAuth({
   redirectUri: process.env.APPLE_REDIRECT_URI
 });
 
-// Apple Sign In - New User Registration
 router.post('/apple-auth', async (req, res) => {
   try {
+    console.log('Received Apple auth request:', req.body);
     const { idToken, email, firstName, lastName, email_verified } = req.body;
 
     if (!idToken) {
+      console.log('Missing idToken in request');
       return res.status(400).json({ message: 'Apple ID token is required' });
     }
 
-    // Verify the Apple ID token
-    const payload = await appleClient.verifyIdToken(idToken);
+    // Read the private key file
+    const privateKeyPath = path.resolve(process.env.APPLE_PRIVATE_KEY_PATH);
+    console.log('Reading private key from:', privateKeyPath);
     
-    if (!payload) {
-      return res.status(401).json({ message: 'Invalid Apple ID token' });
+    if (!fs.existsSync(privateKeyPath)) {
+      console.error('Private key file not found at:', privateKeyPath);
+      return res.status(500).json({ message: 'Server configuration error' });
     }
 
-    // Check if user already exists
-    let user = await User.findOne({ email: payload.email || email });
+    const privateKey = fs.readFileSync(privateKeyPath, 'utf8');
+    console.log('Private key loaded successfully');
 
-    if (user) {
-      // User exists, generate login token
+    // Verify the Apple ID token
+    try {
+      const payload = jwt.verify(idToken, privateKey, {
+        algorithms: ['RS256'],
+        audience: process.env.APPLE_CLIENT_ID,
+        issuer: 'https://appleid.apple.com'
+      });
+      
+      console.log('Token verified successfully:', payload);
+
+      if (!payload) {
+        console.log('Invalid token payload');
+        return res.status(401).json({ message: 'Invalid Apple ID token' });
+      }
+
+      // Check if user already exists
+      let user = await User.findOne({ 
+        $or: [
+          { email: payload.email || email },
+          { appleId: payload.sub }
+        ]
+      });
+
+      if (user) {
+        console.log('Existing user found:', user.email);
+        // User exists, generate login token
+        const token = jwt.sign(
+          { userId: user._id },
+          process.env.JWT_SECRET,
+          { expiresIn: '7d' }
+        );
+
+        return res.json({
+          token,
+          user: {
+            _id: user._id,
+            email: user.email,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            isVerified: user.isVerified,
+            notificationPreferences: user.notificationPreferences,
+            newsletters: user.newsletters
+          }
+        });
+      }
+
+      console.log('Creating new user with data:', {
+        email: payload.email || email,
+        firstName: firstName || payload.firstName || '',
+        lastName: lastName || payload.lastName || '',
+        appleId: payload.sub
+      });
+
+      // Create new user
+      user = new User({
+        email: payload.email || email,
+        firstName: firstName || payload.firstName || '',
+        lastName: lastName || payload.lastName || '',
+        isVerified: email_verified || false,
+        authProvider: 'apple',
+        appleId: payload.sub
+      });
+
+      await user.save();
+      console.log('New user created successfully');
+
+      // Generate token
       const token = jwt.sign(
         { userId: user._id },
         process.env.JWT_SECRET,
         { expiresIn: '7d' }
       );
 
-      return res.json({
+      res.status(201).json({
         token,
         user: {
           _id: user._id,
@@ -690,42 +758,20 @@ router.post('/apple-auth', async (req, res) => {
           newsletters: user.newsletters
         }
       });
+    } catch (verifyError) {
+      console.error('Token verification error:', verifyError);
+      return res.status(401).json({ 
+        message: 'Token verification failed',
+        error: verifyError.message 
+      });
     }
-
-    // Create new user
-    user = new User({
-      email: payload.email || email,
-      firstName: firstName || payload.firstName || '',
-      lastName: lastName || payload.lastName || '',
-      isVerified: email_verified || false,
-      authProvider: 'apple',
-      appleId: payload.sub
-    });
-
-    await user.save();
-
-    // Generate token
-    const token = jwt.sign(
-      { userId: user._id },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
-    res.status(201).json({
-      token,
-      user: {
-        _id: user._id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        isVerified: user.isVerified,
-        notificationPreferences: user.notificationPreferences,
-        newsletters: user.newsletters
-      }
-    });
   } catch (error) {
     console.error('Apple auth error:', error);
-    res.status(500).json({ message: 'Authentication failed' });
+    res.status(500).json({ 
+      message: 'Authentication failed',
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
   }
 });
 
