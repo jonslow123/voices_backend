@@ -656,9 +656,17 @@ router.post('/apple-auth', async (req, res) => {
       return res.status(400).json({ message: 'Apple ID token is required' });
     }
 
-    // Read the private key file
-    const privateKeyPath = path.resolve(process.env.APPLE_PRIVATE_KEY_PATH);
-    console.log('Reading private key from:', privateKeyPath);
+    // Read the private key file - handle both local and serverless environments
+    let privateKeyPath;
+    if (process.env.NODE_ENV === 'production') {
+      // In production/serverless, use the absolute path
+      privateKeyPath = path.join(process.cwd(), 'server', 'config', 'keys', 'AuthKey_UXCXXB2767.p8');
+    } else {
+      // In development, use relative path
+      privateKeyPath = path.join(__dirname, '..', 'server', 'config', 'keys', 'AuthKey_UXCXXB2767.p8');
+    }
+    
+    console.log('Attempting to read private key from:', privateKeyPath);
     
     if (!fs.existsSync(privateKeyPath)) {
       console.error('Private key file not found at:', privateKeyPath);
