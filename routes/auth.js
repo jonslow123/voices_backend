@@ -8,6 +8,7 @@ const { sendVerificationEmail, sendPasswordResetEmail } = require('../utils/emai
 const { OAuth2Client } = require('google-auth-library');
 const fs = require('fs');
 const path = require('path');
+const jwksClient = require('jwks-rsa');
 
 mongoose.set('strictQuery', false);
 
@@ -17,6 +18,23 @@ const oauth2Client = new OAuth2Client(
   process.env.GOOGLE_CLIENT_SECRET,
   process.env.GOOGLE_REDIRECT_URI
 );
+
+// Initialize JWKS client
+const client = jwksClient({
+  jwksUri: 'https://appleid.apple.com/auth/keys'
+});
+
+// Function to get Apple's public key
+const getApplePublicKey = (header, callback) => {
+  client.getSigningKey(header.kid, (err, key) => {
+    if (err) {
+      callback(err);
+      return;
+    }
+    const signingKey = key.getPublicKey();
+    callback(null, signingKey);
+  });
+};
 
 router.post('/login', async (req, res) => {
   try {
@@ -656,30 +674,10 @@ router.post('/apple-auth', async (req, res) => {
       return res.status(400).json({ message: 'Apple ID token is required' });
     }
 
-    // Read the private key file - handle both local and serverless environments
-    let privateKeyPath;
-    if (process.env.NODE_ENV === 'production') {
-      // In production/serverless, use the absolute path
-      privateKeyPath = path.join(process.cwd(), 'server', 'config', 'keys', 'AuthKey_UXCXXB2767.p8');
-    } else {
-      // In development, use relative path
-      privateKeyPath = path.join(__dirname, '..', 'server', 'config', 'keys', 'AuthKey_UXCXXB2767.p8');
-    }
-    
-    console.log('Attempting to read private key from:', privateKeyPath);
-    
-    if (!fs.existsSync(privateKeyPath)) {
-      console.error('Private key file not found at:', privateKeyPath);
-      return res.status(500).json({ message: 'Server configuration error' });
-    }
-
-    const privateKey = fs.readFileSync(privateKeyPath, 'utf8');
-    console.log('Private key loaded successfully');
-
-    // Verify the Apple ID token
+    // Verify the Apple ID token using Apple's public key
     try {
-      const payload = jwt.verify(idToken, privateKey, {
-        algorithms: ['ES256'],
+      const payload = jwt.verify(idToken, getApplePublicKey, {
+        algorithms: ['RS256'],
         audience: process.env.APPLE_CLIENT_ID,
         issuer: 'https://appleid.apple.com'
       });
