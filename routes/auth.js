@@ -6,6 +6,7 @@ const mongoose = require('mongoose');
 const crypto = require('crypto');
 const { sendVerificationEmail, sendPasswordResetEmail } = require('../utils/emailService');
 const { OAuth2Client } = require('google-auth-library');
+const { appleAuth } = require('@apple-signin/auth');
 
 
 mongoose.set('strictQuery', false);
@@ -637,10 +638,6 @@ router.post('/check-apple-user', async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
-
-const jwt = require('jsonwebtoken');
-const { OAuth2Client } = require('google-auth-library');
-const { appleAuth } = require('@apple-signin/auth');
 
 // Add Apple Sign In configuration
 const appleClient = new appleAuth({
