@@ -6,8 +6,8 @@ const mongoose = require('mongoose');
 const crypto = require('crypto');
 const { sendVerificationEmail, sendPasswordResetEmail } = require('../utils/emailService');
 const { OAuth2Client } = require('google-auth-library');
-const { appleAuth } = require('@apple-signin/auth');
-
+const fs = require('fs');
+const path = require('path');
 
 mongoose.set('strictQuery', false);
 
@@ -281,8 +281,6 @@ router.post('/forgot-password', async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
-
-const path = require('path');
 
 // Serve the reset password page
 router.get('/reset-password', (req, res) => {
@@ -639,14 +637,14 @@ router.post('/check-apple-user', async (req, res) => {
   }
 });
 
-// Add Apple Sign In configuration
-const appleClient = new appleAuth({
+// Apple Sign In configuration
+const appleConfig = {
   clientId: process.env.APPLE_CLIENT_ID,
   teamId: process.env.APPLE_TEAM_ID,
   keyId: process.env.APPLE_KEY_ID,
-  privateKeyLocation: process.env.APPLE_PRIVATE_KEY_PATH,
+  privateKeyPath: process.env.APPLE_PRIVATE_KEY_PATH,
   redirectUri: process.env.APPLE_REDIRECT_URI
-});
+};
 
 router.post('/apple-auth', async (req, res) => {
   try {
