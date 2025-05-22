@@ -571,97 +571,6 @@ router.post('/google-auth', async (req, res) => {
   }
 });
 
-// Apple Auth endpoint
-router.post('/apple-auth', async (req, res) => {
-  try {
-    const { idToken } = req.body;
-    
-    if (!idToken) {
-      return res.status(400).json({ message: 'Apple ID token is required' });
-    }
-
-    // Verify the Apple ID token
-    // Note: You'll need to implement proper Apple ID token verification
-    // This is a placeholder for the verification logic
-    const payload = {
-      email: req.body.email,
-      firstName: req.body.firstName,
-      lastName: req.body.lastName,
-      email_verified: true // Apple emails are verified
-    };
-
-    // Check if the user already exists
-    let user = await User.findOne({ email: payload.email });
-
-    if (user) {
-      // User exists, check if they were created with Apple Auth or regular signup
-      if (user.password === '$APPLE_AUTH$') {
-        // User was created with Apple Auth before, just log them in
-        
-        // Update last login time
-        user.lastLogin = new Date();
-        await user.save();
-        
-        // Create JWT token
-        const token = jwt.sign(
-          { userId: user._id },
-          process.env.JWT_SECRET,
-          { expiresIn: '24h' }
-        );
-        
-        return res.json({
-          token,
-          user: user.getPublicProfile(),
-          isNewUser: false
-        });
-      } else {
-        // User signed up with email/password, don't allow Apple Auth login
-        return res.status(400).json({ 
-          message: 'An account already exists with this email. Please log in with your password.',
-          needsPassword: true
-        });
-      }
-    } else {
-      // Create a new user with Apple information
-      // Generate a random password placeholder (user won't need it, but the schema requires it)
-      const appleAuthPassword = '$APPLE_AUTH$';
-      
-      user = new User({
-        email: payload.email,
-        firstName: payload.firstName || '',
-        lastName: payload.lastName || '',
-        password: appleAuthPassword,
-        isVerified: payload.email_verified,
-        location: {},
-        notificationPreferences: {
-          artistAlerts: true,
-          eventAlerts: true
-        },
-        newsletters: true
-      });
-      
-      await user.save();
-      
-      // Create JWT token
-      const token = jwt.sign(
-        { userId: user._id },
-        process.env.JWT_SECRET,
-        { expiresIn: '24h' }
-      );
-      
-      return res.status(201).json({
-        token,
-        user: user.getPublicProfile(),
-        isNewUser: true,
-        message: 'Account created successfully with Apple'
-      });
-    }
-  } catch (error) {
-    console.error('Apple auth error:', error);
-    res.status(500).json({ message: 'Server error during Apple authentication' });
-  }
-});
-
 router.get('/health', async (req, res) => {
   try {
     const dbStatus = mongoose.connection.readyState;
@@ -728,5 +637,149 @@ router.post('/check-apple-user', async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 });
+
+const jwt = require('jsonwebtoken');
+const { OAuth2Client } = require('google-auth-library');
+const { appleAuth } = require('@apple-signin/auth');
+
+// Add Apple Sign In configuration
+const appleClient = new appleAuth({
+  clientId: process.env.APPLE_CLIENT_ID,
+  teamId: process.env.APPLE_TEAM_ID,
+  keyId: process.env.APPLE_KEY_ID,
+  privateKeyLocation: process.env.APPLE_PRIVATE_KEY_PATH,
+  redirectUri: process.env.APPLE_REDIRECT_URI
+});
+
+// Apple Sign In - New User Registration
+router.post('/apple-auth', async (req, res) => {
+  try {
+    const { idToken, email, firstName, lastName, email_verified } = req.body;
+
+    if (!idToken) {
+      return res.status(400).json({ message: 'Apple ID token is required' });
+    }
+
+    // Verify the Apple ID token
+    const payload = await appleClient.verifyIdToken(idToken);
+    
+    if (!payload) {
+      return res.status(401).json({ message: 'Invalid Apple ID token' });
+    }
+
+    // Check if user already exists
+    let user = await User.findOne({ email: payload.email || email });
+
+    if (user) {
+      // User exists, generate login token
+      const token = jwt.sign(
+        { userId: user._id },
+        process.env.JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+
+      return res.json({
+        token,
+        user: {
+          _id: user._id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          isVerified: user.isVerified,
+          notificationPreferences: user.notificationPreferences,
+          newsletters: user.newsletters
+        }
+      });
+    }
+
+    // Create new user
+    user = new User({
+      email: payload.email || email,
+      firstName: firstName || payload.firstName || '',
+      lastName: lastName || payload.lastName || '',
+      isVerified: email_verified || false,
+      authProvider: 'apple',
+      appleId: payload.sub
+    });
+
+    await user.save();
+
+    // Generate token
+    const token = jwt.sign(
+      { userId: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.status(201).json({
+      token,
+      user: {
+        _id: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        isVerified: user.isVerified,
+        notificationPreferences: user.notificationPreferences,
+        newsletters: user.newsletters
+      }
+    });
+  } catch (error) {
+    console.error('Apple auth error:', error);
+    res.status(500).json({ message: 'Authentication failed' });
+  }
+});
+
+// Apple Sign In - Login
+router.post('/apple-login', async (req, res) => {
+  try {
+    const { idToken } = req.body;
+
+    if (!idToken) {
+      return res.status(400).json({ message: 'Apple ID token is required' });
+    }
+
+    // Verify the Apple ID token
+    const payload = await appleClient.verifyIdToken(idToken);
+    
+    if (!payload) {
+      return res.status(401).json({ message: 'Invalid Apple ID token' });
+    }
+
+    // Find user by Apple ID or email
+    const user = await User.findOne({
+      $or: [
+        { appleId: payload.sub },
+        { email: payload.email }
+      ]
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found. Please sign up first.' });
+    }
+
+    // Generate token
+    const token = jwt.sign(
+      { userId: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      token,
+      user: {
+        _id: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        isVerified: user.isVerified,
+        notificationPreferences: user.notificationPreferences,
+        newsletters: user.newsletters
+      }
+    });
+  } catch (error) {
+    console.error('Apple login error:', error);
+    res.status(500).json({ message: 'Login failed' });
+  }
+}); 
 
 module.exports = router; 

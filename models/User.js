@@ -11,7 +11,9 @@ const userSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: true
+    required: function() {
+      return this.authProvider === 'local';
+    }
   },
   firstName: {
     type: String,
@@ -57,13 +59,20 @@ const userSchema = new mongoose.Schema({
   lastLogin: Date,
   resetPasswordToken: String,
   resetPasswordExpires: Date,
+  // New fields for authentication providers
+  authProvider: {
+    type: String,
+    enum: ['local', 'apple'],
+    default: 'local'
+  },
+  appleId: String,
   }, { 
   collection: 'users'
 });
 
-// Hash password before saving
+// Hash password before saving - only for local auth
 userSchema.pre('save', async function(next) {
-  if (!this.isModified('password')) return next();
+  if (!this.isModified('password') || this.authProvider !== 'local') return next();
   
   try {
     const salt = await bcrypt.genSalt(10);
@@ -74,8 +83,9 @@ userSchema.pre('save', async function(next) {
   }
 });
 
-// Method to compare passwords
+// Method to compare passwords - only for local auth
 userSchema.methods.comparePassword = async function(candidatePassword) {
+  if (this.authProvider !== 'local') return false;
   return bcrypt.compare(candidatePassword, this.password);
 };
 
@@ -105,4 +115,4 @@ userSchema.statics.addDeviceToken = async function(userId, token) {
 };
 
 const User = mongoose.model('User', userSchema);
-module.exports = User; 
+module.exports = User;
