@@ -676,10 +676,18 @@ router.post('/apple-auth', async (req, res) => {
 
     // Verify the Apple ID token using Apple's public key
     try {
-      const payload = jwt.verify(idToken, getApplePublicKey, {
-        algorithms: ['RS256'],
-        audience: process.env.APPLE_CLIENT_ID,
-        issuer: 'https://appleid.apple.com'
+      const payload = await new Promise((resolve, reject) => {
+        jwt.verify(idToken, getApplePublicKey, {
+          algorithms: ['RS256'],
+          audience: process.env.APPLE_CLIENT_ID,
+          issuer: 'https://appleid.apple.com'
+        }, (err, decoded) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          resolve(decoded);
+        });
       });
       
       console.log('Token verified successfully:', payload);
