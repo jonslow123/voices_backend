@@ -679,7 +679,7 @@ router.post('/apple-auth', async (req, res) => {
     // Verify the Apple ID token
     try {
       const payload = jwt.verify(idToken, privateKey, {
-        algorithms: ['RS256'],
+        algorithms: ['ES256'],
         audience: process.env.APPLE_CLIENT_ID,
         issuer: 'https://appleid.apple.com'
       });
