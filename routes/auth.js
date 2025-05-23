@@ -726,16 +726,16 @@ router.post('/apple-auth', async (req, res) => {
 
     console.log('Creating new user with data:', {
       email: payload.email || email,
-      firstName: firstName || '',
-      lastName: lastName || '',
+      firstName: firstName || 'Apple',
+      lastName: lastName || 'User',
       appleId: payload.sub
     });
 
     // Create new user
     user = new User({
       email: payload.email || email,
-      firstName: firstName || '',
-      lastName: lastName || '',
+      firstName: firstName || 'Apple',
+      lastName: lastName || 'User',
       password: '$APPLE_AUTH$', // Special marker for Apple users
       isVerified: true, // Apple verifies emails
       authProvider: 'apple',
@@ -795,26 +795,39 @@ router.post('/apple-login', async (req, res) => {
 
     let appleId = user;
     let verifiedEmail = email;
+    let tokenPayload = null;
     
-    // If we have a token, try to verify it
+    // If we have a token, try to verify it and extract user info
     if (idToken) {
       try {
         console.log('Attempting to verify token...');
-        const payload = await appleSignin.verifyIdToken(idToken, {
+        tokenPayload = await appleSignin.verifyIdToken(idToken, {
           audience: process.env.APPLE_CLIENT_ID
         });
-        console.log('Token verified successfully with payload:', payload);
+        console.log('Token verified successfully with payload:', tokenPayload);
         
-        appleId = payload.sub;
+        // Extract user ID from token
+        if (tokenPayload.sub) {
+          appleId = tokenPayload.sub;
+          console.log('Extracted Apple ID from token:', appleId);
+        }
         
-        // If email wasn't provided but is in the payload, use it
-        if (payload.email) {
-          verifiedEmail = payload.email;
-          console.log('Using email from payload:', verifiedEmail);
+        // Extract email from token if available
+        if (tokenPayload.email) {
+          verifiedEmail = tokenPayload.email;
+          console.log('Extracted email from token:', verifiedEmail);
         }
       } catch (verifyError) {
         console.error('Token verification error in login:', verifyError);
-        console.log('Continuing with provided credentials as fallback');
+        console.log('Token verification failed, will try with provided credentials');
+        
+        // If verification fails but we have no other identification, this is a problem
+        if (!email && !user) {
+          return res.status(401).json({ 
+            message: 'Token verification failed and no fallback credentials provided',
+            error: verifyError.message 
+          });
+        }
       }
     }
 
@@ -822,6 +835,13 @@ router.post('/apple-login', async (req, res) => {
       appleId,
       verifiedEmail
     });
+
+    // If we still don't have any way to identify the user, return an error
+    if (!appleId && !verifiedEmail) {
+      return res.status(400).json({ 
+        message: 'Unable to extract user identification from token or request' 
+      });
+    }
 
     // Let's try direct lookups first for better diagnostics
     if (appleId) {
@@ -901,11 +921,11 @@ router.post('/apple-login', async (req, res) => {
     if (verifiedEmail || appleId) {
       console.log('Creating new user with Apple credentials');
       
-      // Create a new user
+      // Create a new user with proper defaults for required fields
       const newUser = new User({
         email: verifiedEmail || `apple_user_${Date.now()}@example.com`,
-        firstName: firstName || '',
-        lastName: lastName || '',
+        firstName: firstName || 'Apple',
+        lastName: lastName || 'User',
         password: '$APPLE_AUTH$',
         isVerified: true,
         authProvider: 'apple',
@@ -981,8 +1001,8 @@ router.post('/apple-login-debug', async (req, res) => {
       // Create a new user
       foundUser = new User({
         email: email || 'apple_user_' + Date.now() + '@example.com',
-        firstName: firstName || '',
-        lastName: lastName || '',
+        firstName: firstName || 'Apple',
+        lastName: lastName || 'User',
         password: '$APPLE_AUTH$',
         isVerified: true,
         authProvider: 'apple',
