@@ -948,4 +948,71 @@ router.get('/debug-check-users', async (req, res) => {
   }
 });
 
+// Apple Email Login - Manual login for Apple users using email
+router.post('/apple-email-login', async (req, res) => {
+  try {
+    console.log('Apple email login request:', req.body);
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    console.log('Looking for Apple user with email:', email);
+
+    // Find a user with this email who registered via Apple
+    const user = await User.findOne({
+      email: email,
+      authProvider: 'apple'
+    });
+
+    if (!user) {
+      console.log('No Apple user found with email:', email);
+      
+      // Check if any user exists with this email (for debugging)
+      const anyUser = await User.findOne({ email: email });
+      if (anyUser) {
+        console.log('User exists but not with Apple auth provider:', anyUser.authProvider);
+        return res.status(404).json({ 
+          message: 'User found but not registered with Apple. Please use regular login or sign in with Apple.',
+          authProvider: anyUser.authProvider
+        });
+      }
+      
+      return res.status(404).json({ message: 'No Apple account found with this email. Please sign up with Apple first.' });
+    }
+
+    console.log('Apple user found:', user.email, 'Apple ID:', user.appleId);
+
+    // Generate token
+    const token = jwt.sign(
+      { userId: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    console.log('Apple email login successful');
+
+    res.json({
+      token,
+      user: {
+        _id: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        isVerified: user.isVerified,
+        notificationPreferences: user.notificationPreferences,
+        newsletters: user.newsletters
+      },
+      loginMethod: 'apple-email'
+    });
+  } catch (error) {
+    console.error('Apple email login error:', error);
+    res.status(500).json({ 
+      message: 'Login failed',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router; 
