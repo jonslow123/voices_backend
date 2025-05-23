@@ -778,14 +778,16 @@ router.post('/apple-auth', async (req, res) => {
 router.post('/apple-login', async (req, res) => {
   try {
     console.log('Apple login request (FULL):', req.body);
-    const { idToken, email, user } = req.body;
+    const { idToken, email, user, firstName, lastName } = req.body;
     console.log('Apple login extracted fields:', { 
       idToken: idToken ? `${idToken.substring(0, 20)}...` : undefined, 
       email, 
-      user 
+      user,
+      firstName,
+      lastName
     });
 
-    // Check if we have either token or email
+    // Check if we have any identification information
     if (!idToken && !email && !user) {
       console.log('No identification information provided');
       return res.status(400).json({ message: 'Apple ID token, email, or user ID is required' });
@@ -816,91 +818,130 @@ router.post('/apple-login', async (req, res) => {
       }
     }
 
-    // Build the query based on what we have
-    const query = { $or: [] };
-    
+    console.log('Final identification values:', {
+      appleId,
+      verifiedEmail
+    });
+
+    // Let's try direct lookups first for better diagnostics
     if (appleId) {
-      console.log('Adding appleId to search query:', appleId);
-      query.$or.push({ appleId });
+      console.log(`Looking up user with exact appleId: "${appleId}"`);
+      const appleIdUser = await User.findOne({ appleId });
+      if (appleIdUser) {
+        console.log('Found user by Apple ID:', appleIdUser.email);
+        
+        // Log token and return
+        const token = jwt.sign(
+          { userId: appleIdUser._id },
+          process.env.JWT_SECRET,
+          { expiresIn: '7d' }
+        );
+        
+        console.log('Login successful via Apple ID lookup');
+        return res.json({
+          token,
+          user: {
+            _id: appleIdUser._id,
+            email: appleIdUser.email,
+            firstName: appleIdUser.firstName,
+            lastName: appleIdUser.lastName,
+            isVerified: appleIdUser.isVerified,
+            notificationPreferences: appleIdUser.notificationPreferences,
+            newsletters: appleIdUser.newsletters
+          },
+          lookupMethod: 'appleId'
+        });
+      } else {
+        console.log('No user found with this Apple ID');
+      }
     }
     
     if (verifiedEmail) {
-      console.log('Adding email to search query:', verifiedEmail);
-      query.$or.push({ email: verifiedEmail });
+      console.log(`Looking up user with exact email: "${verifiedEmail}"`);
+      const emailUser = await User.findOne({ email: verifiedEmail });
+      if (emailUser) {
+        console.log('Found user by email:', emailUser.email);
+        
+        // If we have an Apple ID but user doesn't, update their record
+        if (appleId && !emailUser.appleId) {
+          console.log('Updating existing email user with Apple ID');
+          emailUser.appleId = appleId;
+          emailUser.authProvider = 'apple';
+          await emailUser.save();
+        }
+        
+        // Log token and return
+        const token = jwt.sign(
+          { userId: emailUser._id },
+          process.env.JWT_SECRET,
+          { expiresIn: '7d' }
+        );
+        
+        console.log('Login successful via email lookup');
+        return res.json({
+          token,
+          user: {
+            _id: emailUser._id,
+            email: emailUser.email,
+            firstName: emailUser.firstName,
+            lastName: emailUser.lastName,
+            isVerified: emailUser.isVerified,
+            notificationPreferences: emailUser.notificationPreferences,
+            newsletters: emailUser.newsletters
+          },
+          lookupMethod: 'email'
+        });
+      } else {
+        console.log('No user found with this email');
+      }
+    }
+
+    // If we got here, no existing user was found with direct lookups
+    // Create a new user if we have enough information
+    if (verifiedEmail || appleId) {
+      console.log('Creating new user with Apple credentials');
+      
+      // Create a new user
+      const newUser = new User({
+        email: verifiedEmail || `apple_user_${Date.now()}@example.com`,
+        firstName: firstName || '',
+        lastName: lastName || '',
+        password: '$APPLE_AUTH$',
+        isVerified: true,
+        authProvider: 'apple',
+        appleId: appleId || `unknown_${Date.now()}`
+      });
+      
+      await newUser.save();
+      console.log('New Apple user created:', newUser.email);
+      
+      // Generate token
+      const token = jwt.sign(
+        { userId: newUser._id },
+        process.env.JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+      
+      console.log('Registration and login successful');
+      return res.json({
+        token,
+        user: {
+          _id: newUser._id,
+          email: newUser.email,
+          firstName: newUser.firstName,
+          lastName: newUser.lastName,
+          isVerified: newUser.isVerified,
+          notificationPreferences: newUser.notificationPreferences,
+          newsletters: newUser.newsletters
+        },
+        isNewUser: true
+      });
     }
     
-    if (query.$or.length === 0) {
-      console.log('No search criteria available');
-      return res.status(400).json({ message: 'Insufficient information to find user' });
-    }
-
-    // Log the final query
-    console.log('User search query:', JSON.stringify(query));
-
-    // Find user by Apple ID or email
-    const foundUser = await User.findOne(query);
-
-    if (!foundUser) {
-      console.log('No user found with query', JSON.stringify(query));
-      
-      // For development: If we're in development and have an email, try to find any user with that email
-      if (process.env.NODE_ENV !== 'production' && verifiedEmail) {
-        console.log('DEV MODE: Trying to find any user with email:', verifiedEmail);
-        const anyUser = await User.findOne({ email: verifiedEmail });
-        
-        if (anyUser) {
-          console.log('DEV MODE: Found user with email (ignoring auth provider):', anyUser.email);
-          
-          // In development, we'll return this user
-          const token = jwt.sign(
-            { userId: anyUser._id },
-            process.env.JWT_SECRET,
-            { expiresIn: '7d' }
-          );
-          
-          return res.json({
-            token,
-            user: {
-              _id: anyUser._id,
-              email: anyUser.email,
-              firstName: anyUser.firstName,
-              lastName: anyUser.lastName,
-              isVerified: anyUser.isVerified,
-              notificationPreferences: anyUser.notificationPreferences,
-              newsletters: anyUser.newsletters
-            },
-            devModeAuth: true
-          });
-        } else {
-          console.log('DEV MODE: No user found with email:', verifiedEmail);
-        }
-      }
-      
-      return res.status(404).json({ message: 'User not found. Please sign up first.' });
-    }
-
-    console.log('User found:', foundUser.email);
-
-    // Generate token
-    const token = jwt.sign(
-      { userId: foundUser._id },
-      process.env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-
-    console.log('Login successful, token generated');
-
-    res.json({
-      token,
-      user: {
-        _id: foundUser._id,
-        email: foundUser.email,
-        firstName: foundUser.firstName,
-        lastName: foundUser.lastName,
-        isVerified: foundUser.isVerified,
-        notificationPreferences: foundUser.notificationPreferences,
-        newsletters: foundUser.newsletters
-      }
+    // If we got here, no user was found and we couldn't create one
+    return res.status(404).json({ 
+      message: 'User not found and could not be created. Insufficient information provided.',
+      providedInfo: { appleId, email }
     });
   } catch (error) {
     console.error('Apple login error:', error);
@@ -979,6 +1020,41 @@ router.post('/apple-login-debug', async (req, res) => {
       message: 'Debug login failed',
       error: error.toString(),
       stack: error.stack
+    });
+  }
+});
+
+// DEBUG ENDPOINT - Check for Apple users in database
+router.get('/debug-check-users', async (req, res) => {
+  try {
+    // Find all users with Apple auth or matching the specific email
+    const appleUsers = await User.find({ 
+      $or: [
+        { authProvider: 'apple' },
+        { appleId: { $exists: true } }
+      ]
+    }).select('email firstName lastName appleId authProvider');
+    
+    // Look for the specific email
+    const specificUser = await User.findOne({ 
+      email: 'onslow.jack@yahoo.com' 
+    }).select('_id email firstName lastName password appleId authProvider');
+    
+    // Get total user count
+    const totalUsers = await User.countDocuments({});
+    
+    res.json({
+      message: 'Database check complete',
+      totalUsers,
+      appleUsersCount: appleUsers.length,
+      appleUsers,
+      specificUser
+    });
+  } catch (error) {
+    console.error('Debug check error:', error);
+    res.status(500).json({
+      message: 'Error checking users',
+      error: error.toString()
     });
   }
 });
