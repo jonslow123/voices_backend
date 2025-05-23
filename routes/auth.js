@@ -660,12 +660,16 @@ router.post('/check-apple-user', async (req, res) => {
 router.post('/apple-auth', async (req, res) => {
   try {
     console.log('Received Apple auth request:', req.body);
-    const { idToken, email, firstName, lastName, email_verified } = req.body;
+    const { idToken, email, firstName, lastName, email_verified, sub } = req.body;
 
     if (!idToken) {
       console.log('Missing idToken in request');
       return res.status(400).json({ message: 'Apple ID token is required' });
     }
+
+    // Provide defaults for empty names to satisfy validation
+    const finalFirstName = (firstName && firstName.trim()) ? firstName.trim() : 'Apple';
+    const finalLastName = (lastName && lastName.trim()) ? lastName.trim() : 'User';
 
     // Verify the token
     let payload;
@@ -679,75 +683,57 @@ router.post('/apple-auth', async (req, res) => {
       
       // If token verification fails, use the data from the request
       // This is a fallback for testing or when verification isn't possible
-      if (email) {
-        console.log('Using provided email as fallback:', email);
+      if (email || sub) {
+        console.log('Using provided data as fallback');
         payload = { 
-          sub: req.body.user || 'unknown',
+          sub: sub || 'unknown',
           email: email
         };
       } else {
         return res.status(401).json({ 
-          message: 'Token verification failed and no email provided',
+          message: 'Token verification failed and no fallback data provided',
           error: verifyError.message 
         });
       }
     }
 
     // Check if user already exists
-    let user = await User.findOne({ 
+    const existingUser = await User.findOne({
       $or: [
-        { email: payload.email || email },
-        { appleId: payload.sub }
+        { appleId: payload.sub },
+        { email: payload.email || email }
       ]
     });
 
-    if (user) {
-      console.log('Existing user found:', user.email);
-      // User exists, generate login token
-      const token = jwt.sign(
-        { userId: user._id },
-        process.env.JWT_SECRET,
-        { expiresIn: '7d' }
-      );
-
-      return res.json({
-        token,
-        user: {
-          _id: user._id,
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          isVerified: user.isVerified,
-          notificationPreferences: user.notificationPreferences,
-          newsletters: user.newsletters
-        }
-      });
+    if (existingUser) {
+      console.log('User already exists:', existingUser.email);
+      return res.status(409).json({ message: 'User already exists with this Apple ID or email' });
     }
 
     console.log('Creating new user with data:', {
       email: payload.email || email,
-      firstName: firstName || 'Apple',
-      lastName: lastName || 'User',
+      firstName: finalFirstName,
+      lastName: finalLastName,
       appleId: payload.sub
     });
 
     // Create new user
-    user = new User({
+    const newUser = new User({
+      appleId: payload.sub,
       email: payload.email || email,
-      firstName: firstName || 'Apple',
-      lastName: lastName || 'User',
+      firstName: finalFirstName,
+      lastName: finalLastName,
       password: '$APPLE_AUTH$', // Special marker for Apple users
-      isVerified: true, // Apple verifies emails
-      authProvider: 'apple',
-      appleId: payload.sub
+      isVerified: email_verified || true, // Apple verifies emails
+      authProvider: 'apple'
     });
 
-    await user.save();
+    await newUser.save();
     console.log('New user created successfully');
 
     // Generate token
     const token = jwt.sign(
-      { userId: user._id },
+      { userId: newUser._id },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -755,13 +741,13 @@ router.post('/apple-auth', async (req, res) => {
     res.status(201).json({
       token,
       user: {
-        _id: user._id,
-        email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        isVerified: user.isVerified,
-        notificationPreferences: user.notificationPreferences,
-        newsletters: user.newsletters
+        _id: newUser._id,
+        email: newUser.email,
+        firstName: newUser.firstName,
+        lastName: newUser.lastName,
+        isVerified: newUser.isVerified,
+        notificationPreferences: newUser.notificationPreferences,
+        newsletters: newUser.newsletters
       }
     });
   } catch (error) {
@@ -777,198 +763,81 @@ router.post('/apple-auth', async (req, res) => {
 // Apple Sign In - Login
 router.post('/apple-login', async (req, res) => {
   try {
-    console.log('Apple login request (FULL):', req.body);
-    const { idToken, email, user, firstName, lastName } = req.body;
-    console.log('Apple login extracted fields:', { 
-      idToken: idToken ? `${idToken.substring(0, 20)}...` : undefined, 
-      email, 
-      user,
-      firstName,
-      lastName
-    });
+    console.log('Apple login request:', req.body);
+    const { idToken, sub } = req.body;
 
-    // Check if we have any identification information
-    if (!idToken && !email && !user) {
-      console.log('No identification information provided');
-      return res.status(400).json({ message: 'Apple ID token, email, or user ID is required' });
+    if (!idToken && !sub) {
+      return res.status(400).json({ message: 'Apple ID token or user ID is required' });
     }
 
-    let appleId = user;
-    let verifiedEmail = email;
-    let tokenPayload = null;
-    
-    // If we have a token, try to verify it and extract user info
+    let appleId = sub;
+
+    // If we have a token, try to verify it and extract the Apple ID
     if (idToken) {
       try {
         console.log('Attempting to verify token...');
-        tokenPayload = await appleSignin.verifyIdToken(idToken, {
+        const tokenPayload = await appleSignin.verifyIdToken(idToken, {
           audience: process.env.APPLE_CLIENT_ID
         });
-        console.log('Token verified successfully with payload:', tokenPayload);
+        console.log('Token verified successfully');
         
         // Extract user ID from token
         if (tokenPayload.sub) {
           appleId = tokenPayload.sub;
           console.log('Extracted Apple ID from token:', appleId);
         }
-        
-        // Extract email from token if available
-        if (tokenPayload.email) {
-          verifiedEmail = tokenPayload.email;
-          console.log('Extracted email from token:', verifiedEmail);
-        }
       } catch (verifyError) {
-        console.error('Token verification error in login:', verifyError);
-        console.log('Token verification failed, will try with provided credentials');
+        console.error('Token verification error:', verifyError);
         
-        // If verification fails but we have no other identification, this is a problem
-        if (!email && !user) {
+        // If verification fails and we don't have a fallback sub, return error
+        if (!sub) {
           return res.status(401).json({ 
-            message: 'Token verification failed and no fallback credentials provided',
+            message: 'Token verification failed and no user ID provided',
             error: verifyError.message 
           });
         }
+        console.log('Using provided sub as fallback:', sub);
       }
     }
 
-    console.log('Final identification values:', {
-      appleId,
-      verifiedEmail
-    });
-
-    // If we still don't have any way to identify the user, return an error
-    if (!appleId && !verifiedEmail) {
-      return res.status(400).json({ 
-        message: 'Unable to extract user identification from token or request' 
-      });
+    if (!appleId) {
+      return res.status(400).json({ message: 'Unable to determine Apple user ID' });
     }
 
-    // Let's try direct lookups first for better diagnostics
-    if (appleId) {
-      console.log(`Looking up user with exact appleId: "${appleId}"`);
-      const appleIdUser = await User.findOne({ appleId });
-      if (appleIdUser) {
-        console.log('Found user by Apple ID:', appleIdUser.email);
-        
-        // Log token and return
-        const token = jwt.sign(
-          { userId: appleIdUser._id },
-          process.env.JWT_SECRET,
-          { expiresIn: '7d' }
-        );
-        
-        console.log('Login successful via Apple ID lookup');
-        return res.json({
-          token,
-          user: {
-            _id: appleIdUser._id,
-            email: appleIdUser.email,
-            firstName: appleIdUser.firstName,
-            lastName: appleIdUser.lastName,
-            isVerified: appleIdUser.isVerified,
-            notificationPreferences: appleIdUser.notificationPreferences,
-            newsletters: appleIdUser.newsletters
-          },
-          lookupMethod: 'appleId'
-        });
-      } else {
-        console.log('No user found with this Apple ID');
+    // Find user by Apple ID
+    const user = await User.findOne({ appleId });
+
+    if (!user) {
+      console.log('No user found with Apple ID:', appleId);
+      return res.status(404).json({ message: 'User not found. Please sign up first.' });
+    }
+
+    console.log('User found:', user.email);
+
+    // Generate token
+    const token = jwt.sign(
+      { userId: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      token,
+      user: {
+        _id: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        isVerified: user.isVerified,
+        notificationPreferences: user.notificationPreferences,
+        newsletters: user.newsletters
       }
-    }
-    
-    if (verifiedEmail) {
-      console.log(`Looking up user with exact email: "${verifiedEmail}"`);
-      const emailUser = await User.findOne({ email: verifiedEmail });
-      if (emailUser) {
-        console.log('Found user by email:', emailUser.email);
-        
-        // If we have an Apple ID but user doesn't, update their record
-        if (appleId && !emailUser.appleId) {
-          console.log('Updating existing email user with Apple ID');
-          emailUser.appleId = appleId;
-          emailUser.authProvider = 'apple';
-          await emailUser.save();
-        }
-        
-        // Log token and return
-        const token = jwt.sign(
-          { userId: emailUser._id },
-          process.env.JWT_SECRET,
-          { expiresIn: '7d' }
-        );
-        
-        console.log('Login successful via email lookup');
-        return res.json({
-          token,
-          user: {
-            _id: emailUser._id,
-            email: emailUser.email,
-            firstName: emailUser.firstName,
-            lastName: emailUser.lastName,
-            isVerified: emailUser.isVerified,
-            notificationPreferences: emailUser.notificationPreferences,
-            newsletters: emailUser.newsletters
-          },
-          lookupMethod: 'email'
-        });
-      } else {
-        console.log('No user found with this email');
-      }
-    }
-
-    // If we got here, no existing user was found with direct lookups
-    // Create a new user if we have enough information
-    if (verifiedEmail || appleId) {
-      console.log('Creating new user with Apple credentials');
-      
-      // Create a new user with proper defaults for required fields
-      const newUser = new User({
-        email: verifiedEmail || `apple_user_${Date.now()}@example.com`,
-        firstName: firstName || 'Apple',
-        lastName: lastName || 'User',
-        password: '$APPLE_AUTH$',
-        isVerified: true,
-        authProvider: 'apple',
-        appleId: appleId || `unknown_${Date.now()}`
-      });
-      
-      await newUser.save();
-      console.log('New Apple user created:', newUser.email);
-      
-      // Generate token
-      const token = jwt.sign(
-        { userId: newUser._id },
-        process.env.JWT_SECRET,
-        { expiresIn: '7d' }
-      );
-      
-      console.log('Registration and login successful');
-      return res.json({
-        token,
-        user: {
-          _id: newUser._id,
-          email: newUser.email,
-          firstName: newUser.firstName,
-          lastName: newUser.lastName,
-          isVerified: newUser.isVerified,
-          notificationPreferences: newUser.notificationPreferences,
-          newsletters: newUser.newsletters
-        },
-        isNewUser: true
-      });
-    }
-    
-    // If we got here, no user was found and we couldn't create one
-    return res.status(404).json({ 
-      message: 'User not found and could not be created. Insufficient information provided.',
-      providedInfo: { appleId, email }
     });
   } catch (error) {
     console.error('Apple login error:', error);
     res.status(500).json({ 
       message: 'Login failed',
-      error: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      error: error.message
     });
   }
 });
