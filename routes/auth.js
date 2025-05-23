@@ -793,8 +793,26 @@ router.post('/apple-login', async (req, res) => {
       return res.status(400).json({ message: 'Apple ID token is required' });
     }
 
-    // Verify the Apple ID token
-    const payload = await appleClient.verifyIdToken(idToken);
+    // Verify the Apple ID token using Apple's public key
+    let payload;
+    try {
+      payload = await new Promise((resolve, reject) => {
+        jwt.verify(idToken, getApplePublicKey, {
+          algorithms: ['RS256'],
+          audience: process.env.APPLE_CLIENT_ID,
+          issuer: 'https://appleid.apple.com'
+        }, (err, decoded) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          resolve(decoded);
+        });
+      });
+    } catch (verifyError) {
+      console.error('Token verification error:', verifyError);
+      return res.status(401).json({ message: 'Invalid Apple ID token' });
+    }
     
     if (!payload) {
       return res.status(401).json({ message: 'Invalid Apple ID token' });
@@ -835,6 +853,6 @@ router.post('/apple-login', async (req, res) => {
     console.error('Apple login error:', error);
     res.status(500).json({ message: 'Login failed' });
   }
-}); 
+});
 
 module.exports = router; 
