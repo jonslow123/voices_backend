@@ -777,66 +777,109 @@ router.post('/apple-auth', async (req, res) => {
 // Apple Sign In - Login
 router.post('/apple-login', async (req, res) => {
   try {
+    console.log('Apple login request (FULL):', req.body);
     const { idToken, email, user } = req.body;
-    console.log('Apple login request:', { idToken: !!idToken, email, user });
+    console.log('Apple login extracted fields:', { 
+      idToken: idToken ? `${idToken.substring(0, 20)}...` : undefined, 
+      email, 
+      user 
+    });
 
     // Check if we have either token or email
-    if (!idToken && !email) {
-      return res.status(400).json({ message: 'Apple ID token or email is required' });
+    if (!idToken && !email && !user) {
+      console.log('No identification information provided');
+      return res.status(400).json({ message: 'Apple ID token, email, or user ID is required' });
     }
 
-    let appleId;
+    let appleId = user;
+    let verifiedEmail = email;
     
     // If we have a token, try to verify it
     if (idToken) {
       try {
+        console.log('Attempting to verify token...');
         const payload = await appleSignin.verifyIdToken(idToken, {
           audience: process.env.APPLE_CLIENT_ID
         });
+        console.log('Token verified successfully with payload:', payload);
+        
         appleId = payload.sub;
         
         // If email wasn't provided but is in the payload, use it
-        if (!email && payload.email) {
-          email = payload.email;
+        if (payload.email) {
+          verifiedEmail = payload.email;
+          console.log('Using email from payload:', verifiedEmail);
         }
-        
-        console.log('Token verified successfully:', { appleId, email });
       } catch (verifyError) {
         console.error('Token verification error in login:', verifyError);
-        
-        // If we have user ID from the request, use it as a fallback
-        if (user) {
-          appleId = user;
-          console.log('Using provided user ID as fallback:', appleId);
-        }
+        console.log('Continuing with provided credentials as fallback');
       }
-    } else if (user) {
-      // If no token but user ID is provided
-      appleId = user;
-      console.log('Using provided user ID:', appleId);
     }
 
     // Build the query based on what we have
     const query = { $or: [] };
     
     if (appleId) {
+      console.log('Adding appleId to search query:', appleId);
       query.$or.push({ appleId });
     }
     
-    if (email) {
-      query.$or.push({ email, authProvider: 'apple' });
+    if (verifiedEmail) {
+      console.log('Adding email to search query:', verifiedEmail);
+      query.$or.push({ email: verifiedEmail });
     }
     
     if (query.$or.length === 0) {
+      console.log('No search criteria available');
       return res.status(400).json({ message: 'Insufficient information to find user' });
     }
+
+    // Log the final query
+    console.log('User search query:', JSON.stringify(query));
 
     // Find user by Apple ID or email
     const foundUser = await User.findOne(query);
 
     if (!foundUser) {
+      console.log('No user found with query', JSON.stringify(query));
+      
+      // For development: If we're in development and have an email, try to find any user with that email
+      if (process.env.NODE_ENV !== 'production' && verifiedEmail) {
+        console.log('DEV MODE: Trying to find any user with email:', verifiedEmail);
+        const anyUser = await User.findOne({ email: verifiedEmail });
+        
+        if (anyUser) {
+          console.log('DEV MODE: Found user with email (ignoring auth provider):', anyUser.email);
+          
+          // In development, we'll return this user
+          const token = jwt.sign(
+            { userId: anyUser._id },
+            process.env.JWT_SECRET,
+            { expiresIn: '7d' }
+          );
+          
+          return res.json({
+            token,
+            user: {
+              _id: anyUser._id,
+              email: anyUser.email,
+              firstName: anyUser.firstName,
+              lastName: anyUser.lastName,
+              isVerified: anyUser.isVerified,
+              notificationPreferences: anyUser.notificationPreferences,
+              newsletters: anyUser.newsletters
+            },
+            devModeAuth: true
+          });
+        } else {
+          console.log('DEV MODE: No user found with email:', verifiedEmail);
+        }
+      }
+      
       return res.status(404).json({ message: 'User not found. Please sign up first.' });
     }
+
+    console.log('User found:', foundUser.email);
 
     // Generate token
     const token = jwt.sign(
@@ -844,6 +887,8 @@ router.post('/apple-login', async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
+
+    console.log('Login successful, token generated');
 
     res.json({
       token,
@@ -861,7 +906,79 @@ router.post('/apple-login', async (req, res) => {
     console.error('Apple login error:', error);
     res.status(500).json({ 
       message: 'Login failed',
-      error: error.message 
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+});
+
+// DEBUG ENDPOINT - Apple login without token verification (FOR DEVELOPMENT ONLY)
+router.post('/apple-login-debug', async (req, res) => {
+  try {
+    console.log('DEBUG apple login request:', req.body);
+    const { email, user, firstName, lastName } = req.body;
+    
+    if (!email && !user) {
+      return res.status(400).json({ message: 'Email or user ID is required' });
+    }
+    
+    // Try to find user first
+    let foundUser;
+    
+    if (user) {
+      console.log('DEBUG: Looking for user by appleId:', user);
+      foundUser = await User.findOne({ appleId: user });
+    }
+    
+    if (!foundUser && email) {
+      console.log('DEBUG: Looking for user by email:', email);
+      foundUser = await User.findOne({ email });
+    }
+    
+    if (!foundUser) {
+      console.log('DEBUG: No existing user found, creating new user');
+      // Create a new user
+      foundUser = new User({
+        email: email || 'apple_user_' + Date.now() + '@example.com',
+        firstName: firstName || '',
+        lastName: lastName || '',
+        password: '$APPLE_AUTH$',
+        isVerified: true,
+        authProvider: 'apple',
+        appleId: user || 'debug_' + Date.now()
+      });
+      
+      await foundUser.save();
+      console.log('DEBUG: New user created:', foundUser.email);
+    } else {
+      console.log('DEBUG: Found existing user:', foundUser.email);
+    }
+    
+    // Generate token
+    const token = jwt.sign(
+      { userId: foundUser._id },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+    
+    console.log('DEBUG: Login successful, returning token');
+    res.json({
+      token,
+      user: {
+        _id: foundUser._id,
+        email: foundUser.email,
+        firstName: foundUser.firstName,
+        lastName: foundUser.lastName,
+        isVerified: foundUser.isVerified
+      },
+      debug: true
+    });
+  } catch (error) {
+    console.error('DEBUG Apple login error:', error);
+    res.status(500).json({
+      message: 'Debug login failed',
+      error: error.toString(),
+      stack: error.stack
     });
   }
 });
