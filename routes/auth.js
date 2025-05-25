@@ -1092,4 +1092,102 @@ function getRecommendedAction(authProvider, isVerified) {
   }
 }
 
+// Delete user account
+router.delete('/delete-account', async (req, res) => {
+  try {
+    console.log('Account deletion request received');
+    
+    // Get token from headers
+    const authHeader = req.headers.authorization || req.headers.Authorization;
+    let token = null;
+    
+    if (authHeader) {
+      token = authHeader.startsWith('Bearer ') 
+        ? authHeader.replace('Bearer ', '') 
+        : authHeader;
+    } else if (req.headers['x-auth-token'] || req.headers['X-Auth-Token']) {
+      token = req.headers['x-auth-token'] || req.headers['X-Auth-Token'];
+    }
+    
+    if (!token) {
+      return res.status(401).json({ message: 'No authentication token provided' });
+    }
+    
+    // Verify token and get user ID
+    let userId;
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      userId = decoded.userId;
+      console.log('Token verified for user:', userId);
+    } catch (error) {
+      console.error('Token verification failed:', error);
+      return res.status(401).json({ message: 'Invalid or expired token' });
+    }
+    
+    // Optional: Require password confirmation for extra security
+    const { password, confirmDeletion } = req.body;
+    
+    // Find the user
+    const user = await User.findById(userId);
+    if (!user) {
+      console.log('User not found for deletion:', userId);
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    console.log('Found user for deletion:', user.email);
+    
+    // For non-social auth users, require password confirmation
+    if (user.password && user.password !== '$APPLE_AUTH$' && user.password !== '$GOOGLE_AUTH$') {
+      if (!password) {
+        return res.status(400).json({ 
+          message: 'Password confirmation required for account deletion' 
+        });
+      }
+      
+      // Verify password
+      const isPasswordValid = await user.comparePassword(password);
+      if (!isPasswordValid) {
+        console.log('Invalid password provided for account deletion');
+        return res.status(401).json({ message: 'Invalid password' });
+      }
+    }
+    
+    // Require explicit confirmation
+    if (!confirmDeletion) {
+      return res.status(400).json({ 
+        message: 'Account deletion must be explicitly confirmed. Set confirmDeletion to true.' 
+      });
+    }
+    
+    // Store user info for logging before deletion
+    const userInfo = {
+      id: user._id,
+      email: user.email,
+      authProvider: user.authProvider,
+      createdAt: user.createdAt
+    };
+    
+    // Delete the user account
+    await User.findByIdAndDelete(userId);
+    
+    console.log('User account deleted successfully:', userInfo);
+    
+    // Return success response
+    res.json({
+      message: 'Account deleted successfully',
+      deletedUser: {
+        email: userInfo.email,
+        deletedAt: new Date()
+      }
+    });
+    
+  } catch (error) {
+    console.error('Account deletion error:', error);
+    res.status(500).json({ 
+      message: 'Failed to delete account',
+      error: error.message 
+    });
+  }
+});
+
 module.exports = router; 
