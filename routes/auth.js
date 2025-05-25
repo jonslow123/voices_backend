@@ -1015,4 +1015,81 @@ router.post('/apple-email-login', async (req, res) => {
   }
 });
 
+// Check if email exists and return auth provider info
+router.post('/check-email', async (req, res) => {
+  try {
+    console.log('Email check request:', req.body);
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+    
+    // Normalize email
+    const normalizedEmail = email.toLowerCase().trim();
+    console.log('Checking for email:', normalizedEmail);
+    
+    // Check if user exists with this email
+    const existingUser = await User.findOne({ 
+      email: normalizedEmail 
+    }).select('email authProvider isVerified createdAt');
+    
+    if (!existingUser) {
+      console.log('No user found with email:', normalizedEmail);
+      return res.json({ 
+        exists: false,
+        email: normalizedEmail
+      });
+    }
+    
+    console.log('User found:', {
+      email: existingUser.email,
+      authProvider: existingUser.authProvider,
+      isVerified: existingUser.isVerified
+    });
+    
+    // Return detailed information about the existing user
+    res.json({ 
+      exists: true,
+      email: existingUser.email,
+      authProvider: existingUser.authProvider || 'email', // Default to 'email' if not set
+      isVerified: existingUser.isVerified,
+      createdAt: existingUser.createdAt,
+      // Provide guidance on how to proceed
+      recommendedAction: getRecommendedAction(existingUser.authProvider, existingUser.isVerified)
+    });
+  } catch (error) {
+    console.error('Error checking email:', error);
+    res.status(500).json({ 
+      error: 'Internal server error',
+      message: error.message 
+    });
+  }
+});
+
+// Helper function to provide guidance based on existing user
+function getRecommendedAction(authProvider, isVerified) {
+  if (authProvider === 'apple') {
+    return {
+      action: 'use_apple_signin',
+      message: 'This email is registered with Apple Sign In. Please use "Sign in with Apple" or the manual Apple email login.'
+    };
+  } else if (authProvider === 'google') {
+    return {
+      action: 'use_google_signin',
+      message: 'This email is registered with Google Sign In. Please use "Sign in with Google".'
+    };
+  } else if (!isVerified) {
+    return {
+      action: 'verify_email',
+      message: 'This email is registered but not verified. Please check your email for verification link or request a new one.'
+    };
+  } else {
+    return {
+      action: 'use_password_login',
+      message: 'This email is registered. Please use your password to log in.'
+    };
+  }
+}
+
 module.exports = router; 
